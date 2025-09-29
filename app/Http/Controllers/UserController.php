@@ -11,60 +11,45 @@ use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class UserController extends Controller
 {
-    // Register new user
-    public function register(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'name'       => 'required|string|max:255',
-            'email'      => 'required|string|email|max:255|unique:users',
-            'password'   => 'required|string|min:6|confirmed',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => bcrypt($request->password),
-        ]);
-
-        return response()->json(['message' => 'User registered successfully', 'user' => $user], 201);
-    }
-
     // Login
-    public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
+public function login(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email',
+        'password' => 'required|string'
+    ]);
 
-        if (! $token = JWTAuth::attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+    $credentials = $request->only('email', 'password');
 
-        return $this->respondWithToken($token);
+    if (! $token = JWTAuth::attempt($credentials)) {
+        return back()->withErrors(['email' => 'Invalid credentials'])->withInput();
     }
 
-    // Profile
-    public function profile()
-    {
-        return response()->json(JWTAuth::user());
+    $user = JWTAuth::user();
+
+    if ($user->email !== 'admin@email.com') {
+        return back()->withErrors(['email' => 'Access denied'])->withInput();
     }
+
+    // Store entire user object in session
+    session(['user' => $user]);
+
+    // Redirect to dashboard
+    return redirect()->route('dashboard');
+}
+
+
 
     // Logout
-    public function logout()
-    {
-        JWTAuth::invalidate(JWTAuth::getToken());
+   public function logout()
+{
+    session()->flush(); // remove all session data
+    return redirect()->route('login');
+}
 
-        return response()->json(['message' => 'Successfully logged out']);
-    }
 
     // Refresh
-    public function refresh()
-    {
-        $newToken = JWTAuth::refresh(JWTAuth::getToken());
-        return $this->respondWithToken($newToken);
-    }
+    
 
     // Token response
     protected function respondWithToken($token)
