@@ -43,6 +43,7 @@ class ExamController extends Controller
 
         return redirect()->route('dashboard')->with('success', 'Exam created successfully!');
     }
+    
 
     // Show exam detail (page to import CSV)
     public function show($uuid)
@@ -50,4 +51,14 @@ class ExamController extends Controller
         $exam = Exam::where('uuid', $uuid)->firstOrFail(); // <--- rename to $exam
         return view('exams.show', compact('exam'));        // pass as $exam, not $exams
     }
+
+    // Delete exam
+    public function destroy($uuid)
+    {
+    $exam = Exam::where('uuid', $uuid)->firstOrFail();
+    $exam->delete();
+
+    return redirect()->route('dashboard')->with('success', 'Exam deleted successfully!');
+    }
+
 }

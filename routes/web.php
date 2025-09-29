@@ -21,4 +21,5 @@ Route::middleware('web')->group(function () {
     Route::get('/exams/create', [ExamController::class, 'create'])->name('exams.create');
     Route::post('/exams', [ExamController::class, 'store'])->name('exams.store');
     Route::get('/exams/{uuid}', [ExamController::class, 'show'])->name('exams.show');
+    Route::delete('/exams/{uuid}', [ExamController::class, 'destroy'])->name('exams.destroy'); 
 });
