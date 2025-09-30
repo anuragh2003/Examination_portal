@@ -13,12 +13,13 @@ return new class extends Migration
     {
         Schema::create('exams', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->uuid('uuid')->unique();
-            $table->integer('total_marks');
-            $table->integer('duration_minutes');
-            $table->enum('status', ['draft', 'active'])->default('draft');
+            $table->string('name'); // Exam name
+            $table->uuid('uuid')->unique(); // unique ID to share exam link
+            $table->integer('total_marks'); // total marks required
+            $table->integer('duration_minutes'); // exam duration
+            $table->enum('status', ['draft', 'active', 'archived'])->default('draft');
             $table->timestamps();
+            $table->softDeletes(); // allow safe "deletion"
         });
     }
 
