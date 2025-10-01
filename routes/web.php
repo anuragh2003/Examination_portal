@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ExamController;
+use App\Http\Controllers\CSVImportController;
+use App\Http\Controllers\StudentController;
 
 Route::get('/', function () {
     return view('login');
@@ -22,7 +24,4 @@ Route::middleware('web')->group(function () {
     Route::post('/exams', [ExamController::class, 'store'])->name('exams.store');
     Route::get('/exams/{uuid}', [ExamController::class, 'show'])->name('exams.show');
     Route::delete('/exams/{uuid}', [ExamController::class, 'destroy'])->name('exams.destroy'); 
-    Route::get('/exams/{uuid}/edit', [ExamController::class, 'edit'])->name('exams.edit');
-Route::put('/exams/{uuid}', [ExamController::class, 'update'])->name('exams.update');
-
 });

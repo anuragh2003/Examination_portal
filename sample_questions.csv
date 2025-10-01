@@ -1,0 +1,16 @@
+question_text,type,marks,difficulty,tags,status,option_1,correct_1,option_2,correct_2,option_3,correct_3,option_4,correct_4
+"What is PHP?",mcq_single,5,easy,"php,backend",active,"A programming language",true,"A database",false,"An operating system",false,"A web browser",false
+"Which of the following are PHP frameworks?",mcq_multiple,10,medium,"php,frameworks",active,"Laravel",true,"CodeIgniter",true,"MySQL",false,"Apache",false
+"What does MVC stand for?",mcq_single,5,easy,"php,architecture",active,"Model View Controller",true,"Most Valuable Code",false,"Multiple Version Control",false,"Modern Virtual Computing",false
+"Explain the concept of polymorphism in OOP",descriptive,15,hard,"oop,theory",active,"","","","","","",""
+"Which HTTP methods are safe and idempotent?",mcq_multiple,8,medium,"http,rest",active,"GET",true,"POST",false,"PUT",false,"DELETE",false
+"What is the default port for HTTP?",mcq_single,3,easy,"http,networking",active,"80",true,"443",false,"8080",false,"3000",false
+"Laravel uses which templating engine by default?",mcq_single,4,easy,"laravel,templates",active,"Blade",true,"Twig",false,"Smarty",false,"Mustache",false
+"What is the purpose of middleware in Laravel?",mcq_single,6,medium,"laravel,middleware",active,"Filter HTTP requests",true,"Manage database connections",false,"Handle file uploads",false,"Generate views",false
+"Which of these are valid SQL JOIN types?",mcq_multiple,12,medium,"sql,database",active,"INNER JOIN",true,"LEFT JOIN",true,"OUTER JOIN",false,"CROSS JOIN",true
+"What is the difference between include and require in PHP?",descriptive,10,medium,"php,functions",active,"","","","","","",""
+"Which PHP function is used to connect to MySQL?",mcq_single,4,easy,"php,database",active,"mysqli_connect()",true,"mysql_connect()",false,"db_connect()",false,"connect_mysql()",false
+"What does CRUD stand for?",mcq_single,5,easy,"database,operations",active,"Create Read Update Delete",true,"Code Reuse and Development",false,"Customer Relations User Data",false,"Complete Responsive User Design",false
+"Which of these are PHP superglobals?",mcq_multiple,8,medium,"php,globals",active,"$_GET",true,"$_POST",true,"$_CUSTOM",false,"$_SESSION",true
+"What is the purpose of Composer in PHP?",mcq_single,6,medium,"php,tools",active,"Dependency management",true,"Code compilation",false,"Database migration",false,"Template rendering",false
+"Describe the Model-View-Controller pattern",descriptive,20,hard,"architecture,patterns",active,"","","","","","",""
