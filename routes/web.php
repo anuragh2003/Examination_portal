@@ -22,4 +22,7 @@ Route::middleware('web')->group(function () {
     Route::post('/exams', [ExamController::class, 'store'])->name('exams.store');
     Route::get('/exams/{uuid}', [ExamController::class, 'show'])->name('exams.show');
     Route::delete('/exams/{uuid}', [ExamController::class, 'destroy'])->name('exams.destroy'); 
+    Route::get('/exams/{uuid}/edit', [ExamController::class, 'edit'])->name('exams.edit');
+Route::put('/exams/{uuid}', [ExamController::class, 'update'])->name('exams.update');
+
 });
