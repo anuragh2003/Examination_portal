@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 
 class Exam extends Model
@@ -25,5 +26,16 @@ class Exam extends Model
         static::creating(function ($exam) {
             $exam->uuid = Str::uuid(); // generate unique UUID automatically
         });
+    }
+
+    /**
+     * Get the questions assigned to this exam
+     */
+    public function questions(): BelongsToMany
+    {
+        return $this->belongsToMany(Question::class, 'exam_questions')
+            ->withPivot('order_position')
+            ->withTimestamps()
+            ->orderBy('order_position');
     }
 }
