@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Session;
 use App\Mail\WelcomeEmail;
 use App\Models\student_answer;
 use Illuminate\Support\Facades\Log;
+use App\Models\ProctorVideo;
 
 class StudentController extends Controller
 {
@@ -283,44 +284,102 @@ public function examSubmitted($uuid)
 }
 
 
-    public function uploadProctorVideos(Request $request)
+//     public function uploadProctorVideos(Request $request)
+// {
+
+//     Log::info('UploadProctorVideos called', [
+//         'student_id' => $request->student_id,
+//         'exam_id' => $request->exam_id,
+//         'camera_present' => $request->hasFile('camera_video'),
+//         'screen_present' => $request->hasFile('screen_video'),
+//         'camera_size' => $request->file('camera_video')?->getSize(),
+//         'screen_size' => $request->file('screen_video')?->getSize(),
+//     ]);
+//     $request->validate([
+//         'camera_video' => 'required|file|mimes:webm,mp4|max:512000', // 500 MB
+// 'screen_video' => 'required|file|mimes:webm,mp4|max:512000',
+//         'exam_id' => 'required|exists:exams,id',
+//         'student_id' => 'required|exists:students,id',
+//     ]);
+
+//     $cameraPath = $request->file('camera_video')->store('proctor_videos/camera', 'public');
+//     $screenPath = $request->file('screen_video')->store('proctor_videos/screen', 'public');
+
+//     $record = ProctorRecord::create([
+//         'student_id' => $request->student_id,
+//         'exam_id' => $request->exam_id,
+//         'camera_video_path' => $cameraPath,
+//         'screen_video_path' => $screenPath,
+//     ]);
+
+//      Log::info("Proctoring uploaded", [
+//         'student_id' => $record->student_id,
+//         'exam_id' => $record->exam_id,
+//         'camera_path' => $cameraPath,
+//         'screen_path' => $screenPath,
+//     ]);
+
+//     return response()->json([
+//         'success' => true,
+//         'message' => 'Proctoring videos uploaded successfully!',
+//     ]);
+// }
+public function uploadProctorVideos(Request $request)
 {
-
-    Log::info('UploadProctorVideos called', [
-        'student_id' => $request->student_id,
-        'exam_id' => $request->exam_id,
-        'camera_present' => $request->hasFile('camera_video'),
-        'screen_present' => $request->hasFile('screen_video'),
-        'camera_size' => $request->file('camera_video')?->getSize(),
-        'screen_size' => $request->file('screen_video')?->getSize(),
-    ]);
     $request->validate([
-        'camera_video' => 'required|file|mimes:webm,mp4|max:512000', // 500 MB
-'screen_video' => 'required|file|mimes:webm,mp4|max:512000',
-        'exam_id' => 'required|exists:exams,id',
+        'camera_video' => 'nullable|mimes:webm,mp4,mov|max:51200',
+        'screen_video' => 'nullable|mimes:webm,mp4,mov|max:51200',
         'student_id' => 'required|exists:students,id',
+        'exam_id' => 'required|exists:exams,id',
     ]);
 
-    $cameraPath = $request->file('camera_video')->store('proctor_videos/camera', 'public');
-    $screenPath = $request->file('screen_video')->store('proctor_videos/screen', 'public');
+    $uploaded = [];
 
-    $record = ProctorRecord::create([
-        'student_id' => $request->student_id,
-        'exam_id' => $request->exam_id,
-        'camera_video_path' => $cameraPath,
-        'screen_video_path' => $screenPath,
-    ]);
+    $videos = [
+        'camera_video' => 'camera',
+        'screen_video' => 'screen',
+    ];
 
-     Log::info("Proctoring uploaded", [
-        'student_id' => $record->student_id,
-        'exam_id' => $record->exam_id,
-        'camera_path' => $cameraPath,
-        'screen_path' => $screenPath,
-    ]);
+    foreach ($videos as $inputName => $type) {
+        if ($request->hasFile($inputName)) {
+            $file = $request->file($inputName);
+
+            // Ensure folder exists
+            $destination = storage_path('app/public/proctor_videos/');
+            if (!file_exists($destination)) {
+                mkdir($destination, 0775, true);
+            }
+
+            $filename = time() . '_' . $inputName . '.' . $file->getClientOriginalExtension();
+            $fullPath = $destination . $filename;
+
+            try {
+                $file->move($destination, $filename); // move temp file to storage
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Failed to save $type video: " . $e->getMessage()
+                ]);
+            }
+
+            // Save DB record
+            $video = ProctorVideo::create([
+                'student_id' => $request->student_id,
+                'exam_id' => $request->exam_id,
+                'type' => $type,
+                'filename' => $filename,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+            ]);
+
+            $uploaded[] = $video;
+        }
+    }
 
     return response()->json([
         'success' => true,
-        'message' => 'Proctoring videos uploaded successfully!',
+        'uploaded' => $uploaded
     ]);
 }
 

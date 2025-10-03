@@ -54,9 +54,9 @@ Route::prefix('exam')->middleware('web')->group(function () {
     Route::post('/{uuid}/save-answer', [StudentController::class, 'saveAnswer'])->name('exam.saveAnswer');
 Route::post('/{uuid}/submit', [StudentController::class, 'submitExam'])->name('exam.submit');
 Route::get('/{uuid}/submitted', [StudentController::class, 'examSubmitted'])->name('student.exam-submitted');
-Route::post('/upload-proctor-videos', [StudentController::class, 'uploadProctorVideos'])
-    ->name('upload.proctor.videos')
-    ->middleware('auth');
+Route::post('/{uuid}/upload-proctor-videos', [StudentController::class, 'uploadProctorVideos'])
+    ->name('upload.proctor.videos');
+
 });
 
     

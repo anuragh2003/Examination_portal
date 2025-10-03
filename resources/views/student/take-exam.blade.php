@@ -164,11 +164,11 @@
     formData.append('exam_id', '{{ $exam->id }}');
 
         try {
-            const res = await fetch("{{ route('upload.proctor.videos') }}", {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': "{{ csrf_token() }}" },
-                body: formData
-            });
+            const res = await fetch("{{ route('upload.proctor.videos', ['uuid' => $exam->uuid]) }}", {
+    method: 'POST',
+    headers: { 'X-CSRF-TOKEN': "{{ csrf_token() }}" },
+    body: formData
+});
             const data = await res.json();
             console.log("Proctor upload response:", data);
         } catch (err) {
