@@ -132,43 +132,46 @@
   @endif
 
   <!-- Exams Grid -->
-  @if($exams->isEmpty())
-    <p class="text-gray-600 mt-4">No exams created yet.</p>
-  @else
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-  @foreach($exams as $exam)
-    <div class="bg-white p-6 rounded-2xl shadow-md hover:shadow-xl transition transform hover:-translate-y-1 relative">
-  <!-- Whole card clickable (link) -->
-  <a href="{{ route('exams.show', $exam->uuid) }}" class="block">
-    <h3 class="font-bold text-lg mb-2 truncate">{{ $exam->name }}</h3>
-    <p class="text-gray-500 mb-2">
-      Marks: {{ $exam->total_marks }} | Duration: {{ $exam->duration_minutes }} min
-    </p>
-    <span class="px-3 py-1 text-sm font-semibold rounded-full 
-      {{ $exam->status == 'active' ? 'bg-green-200 text-green-800' : ($exam->status == 'draft' ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-800') }}">
-      {{ ucfirst($exam->status) }}
-    </span>
-  </a>
+@if($exams->isEmpty())
+  <p class="text-gray-600 mt-4">No exams created yet.</p>
+@else
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    @foreach($exams as $exam)
+      <div class="bg-white p-6 rounded-2xl shadow-md hover:shadow-xl transition transform hover:-translate-y-1 flex flex-col justify-between">
+        <!-- Exam Info -->
+        <a href="{{ route('exams.show', $exam->uuid) }}" class="block mb-4">
+          <h3 class="font-bold text-lg mb-2 truncate">{{ $exam->name }}</h3>
+          <p class="text-gray-500 mb-2">
+            Marks: {{ $exam->total_marks }} | Duration: {{ $exam->duration_minutes }} min
+          </p>
+          <span class="px-3 py-1 text-sm font-semibold rounded-full 
+            {{ $exam->status == 'active' ? 'bg-green-200 text-green-800' : ($exam->status == 'draft' ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-800') }}">
+            {{ ucfirst($exam->status) }}
+          </span>
+        </a>
 
-  <!-- Delete button (top-right corner) -->
-  <form action="{{ route('exams.destroy', $exam->uuid) }}" method="POST" 
-        onsubmit="return confirm('Are you sure you want to delete this exam?')" 
-        class="absolute top-3 right-3">
-    @csrf
-    @method('DELETE')
-    <button type="submit" 
-      class="bg-red-600 text-white px-3 py-1 text-sm rounded hover:bg-red-700 transition">
-      Delete
-    </button>
-  </form>
-</div>
+        <!-- Actions -->
+        <div class="flex space-x-2 mt-auto">
+          <a href="{{ route('exams.edit', $exam->uuid) }}" 
+            class="bg-yellow-500 text-white px-3 py-1 text-sm rounded hover:bg-yellow-600 transition">
+            Edit
+          </a>
 
+          <form action="{{ route('exams.destroy', $exam->uuid) }}" method="POST" 
+                onsubmit="return confirm('Are you sure you want to delete this exam?')">
+            @csrf
+            @method('DELETE')
+            <button type="submit" 
+              class="bg-red-600 text-white px-3 py-1 text-sm rounded hover:bg-red-700 transition">
+              Delete
+            </button>
+          </form>
+        </div>
+      </div>
+    @endforeach
+  </div>
+@endif
 
-    </div>
-  @endforeach
-</div>
-
-  @endif
 </main>
 
 <!-- Question Management Modal -->
