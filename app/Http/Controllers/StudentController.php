@@ -309,46 +309,6 @@ public function examSubmitted($uuid)
 }
 
 
-//     public function uploadProctorVideos(Request $request)
-// {
-
-//     Log::info('UploadProctorVideos called', [
-//         'student_id' => $request->student_id,
-//         'exam_id' => $request->exam_id,
-//         'camera_present' => $request->hasFile('camera_video'),
-//         'screen_present' => $request->hasFile('screen_video'),
-//         'camera_size' => $request->file('camera_video')?->getSize(),
-//         'screen_size' => $request->file('screen_video')?->getSize(),
-//     ]);
-//     $request->validate([
-//         'camera_video' => 'required|file|mimes:webm,mp4|max:512000', // 500 MB
-// 'screen_video' => 'required|file|mimes:webm,mp4|max:512000',
-//         'exam_id' => 'required|exists:exams,id',
-//         'student_id' => 'required|exists:students,id',
-//     ]);
-
-//     $cameraPath = $request->file('camera_video')->store('proctor_videos/camera', 'public');
-//     $screenPath = $request->file('screen_video')->store('proctor_videos/screen', 'public');
-
-//     $record = ProctorRecord::create([
-//         'student_id' => $request->student_id,
-//         'exam_id' => $request->exam_id,
-//         'camera_video_path' => $cameraPath,
-//         'screen_video_path' => $screenPath,
-//     ]);
-
-//      Log::info("Proctoring uploaded", [
-//         'student_id' => $record->student_id,
-//         'exam_id' => $record->exam_id,
-//         'camera_path' => $cameraPath,
-//         'screen_path' => $screenPath,
-//     ]);
-
-//     return response()->json([
-//         'success' => true,
-//         'message' => 'Proctoring videos uploaded successfully!',
-//     ]);
-// }
 public function uploadProctorVideos(Request $request)
 {
     $request->validate([
