@@ -11,13 +11,13 @@ A lightweight Laravel-based online examination portal with student management, e
 
 ## 📁 Key files and major functionality
 
-- app/Http/Controllers/ : HTTP controllers that handle web/API requests.
+- pp/Http/Controllers/ : HTTP controllers that handle web/API requests.
   - ExamController.php (exam lifecycle endpoints)
   - StudentController.php (student onboarding, profile)
   - QuestionController.php (CRUD for questions/options)
-- app/Models/ : Eloquent models for core domain objects.
+- pp/Models/ : Eloquent models for core domain objects.
   - Exam.php, Question.php, QuestionOption.php, Student.php, Student_Answer.php, ProctorVideo.php
-- app/Services/QuestionSelector.php : exam question selection logic.
+- pp/Services/QuestionSelector.php : exam question selection logic.
 - 
 Routes/web.php : app routes for UI pages and flows.
 - 
@@ -31,31 +31,36 @@ Resources/views/ : Blade templates for UI pages (exam dashboard, question pages,
 
 1. Clone the repository
 
-   git clone https://github.com/anuragh2003/Examination_portal.git 
+   `ash
+   git clone https://github.com/anuragh2003/Examination_portal.git Examination_portal
    cd Examination_portal
    `
 
 2. Copy environment file and configure DB
 
    - On Linux/macOS: cp .env.example .env
+   - On Windows PowerShell: Copy-Item .env.example .env
 
    Update .env values:
    - DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD
 
 3. Install PHP dependencies
 
+   `ash
    composer install
    php artisan key:generate
    `
 
 4. Run database migrations (and optional seeding)
 
+   `ash
    php artisan migrate
    # optional: php artisan db:seed
    `
 
 5. (Optional) Install JS dependencies for frontend assets
 
+   `ash
    npm install
    npm run dev
    # or npm run build for production
@@ -63,15 +68,25 @@ Resources/views/ : Blade templates for UI pages (exam dashboard, question pages,
 
 6. Create storage symlink (for file uploads)
 
+   `ash
    php artisan storage:link
    `
 
 7. Run local server
 
+   `ash
    php artisan serve
    `
 
    Access at http://127.0.0.1:8000.
+
+## 🧪 Testing
+
+- Run PHPUnit tests:
+
+  `ash
+  ./vendor/bin/phpunit
+  `
 
 ## 🛠 Troubleshooting
 
@@ -79,7 +94,7 @@ Resources/views/ : Blade templates for UI pages (exam dashboard, question pages,
 - composer install fails: check PHP 8+ version, extensions (pdo_mysql, mbstring, tokenizer, xml).
 - missing .env: confirm .env.example is present.
 
-## 📌 Notes
+## 📌 Notes for teammates
 
 - Start by reviewing pp/Services/QuestionSelector.php and pp/Http/Controllers/ExamController.php for core exam behavior.
 - For schema changes, update migrations and model relationships under pp/Models.
