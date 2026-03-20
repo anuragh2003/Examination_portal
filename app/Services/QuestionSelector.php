@@ -23,12 +23,13 @@ class QuestionSelector
      * 
      * @param int $targetMarks - Desired total marks for the exam
      * @param array $filters - Additional filters (difficulty, tags, etc.)
+     * @param int|null $examId - Exam ID to filter questions by
      * @return array - Selected questions with metadata
      */
-    public function selectQuestions(int $targetMarks, array $filters = []): array
+    public function selectQuestions(int $targetMarks, array $filters = [], ?int $examId = null): array
     {
         // Step 1: Get available questions from database
-        $availableQuestions = $this->getAvailableQuestions($filters);
+        $availableQuestions = $this->getAvailableQuestions($filters, $examId);
         
         if ($availableQuestions->isEmpty()) {
             return [
@@ -65,11 +66,16 @@ class QuestionSelector
     /**
      * Get available questions from database with filters
      */
-    private function getAvailableQuestions(array $filters = []): Collection
+    private function getAvailableQuestions(array $filters = [], ?int $examId = null): Collection
     {
         $query = DB::table('questions')
             ->where('status', 'active')  // Only active questions
             ->select('id', 'text', 'marks', 'difficulty', 'tags', 'type');
+        
+        // Filter by exam_id if provided
+        if ($examId !== null) {
+            $query->where('exam_id', $examId);
+        }
         
         // Apply filters if provided
         if (!empty($filters['difficulty'])) {

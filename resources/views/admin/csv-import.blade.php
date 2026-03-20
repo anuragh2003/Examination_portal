@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'CSV Import - Question Bank')
+@section('title', 'CSV Import - ' . $exam->name)
 
 @section('content')
 <div class="container">
@@ -8,7 +8,7 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
-                    <h4><i class="fas fa-upload"></i> CSV Import - Question Bank</h4>
+                    <h4><i class="fas fa-upload"></i> CSV Import for Exam: {{ $exam->name }}</h4>
                 </div>
                 
                 <div class="card-body">
@@ -50,7 +50,7 @@
                         </div>
                     @endif
 
-                    <form action="{{ route('csv.import') }}" method="POST" enctype="multipart/form-data">
+                    <form action="{{ route('exams.import', $exam->uuid) }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         
                         <div class="mb-4">

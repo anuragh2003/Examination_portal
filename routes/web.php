@@ -38,12 +38,18 @@ Route::put('/exams/{uuid}', [ExamController::class, 'update'])->name('exams.upda
     Route::get('/exams/{uuid}/preview', [ExamController::class, 'preview'])->name('exams.preview');
     Route::get('/exams/{uuid}/export', [ExamController::class, 'export'])->name('exams.export');
     
-    // Step 5 - Admin API routes
-    Route::get('/api/questions', [ExamController::class, 'getAllQuestions'])->name('api.questions'); // for QuestionSelector
+    // CSV Import routes per exam
+    Route::get('/exams/{uuid}/import', [CSVImportController::class, 'showImportForm'])->name('exams.import.form');
+    Route::post('/exams/{uuid}/import', [CSVImportController::class, 'import'])->name('exams.import');
+Route::post('/exams/{uuid}/create-instance', [ExamController::class, 'createExamInstance'])->name('exam.create.instance');
+    // API routes
+    Route::get('/api/questions', [ExamController::class, 'getAllQuestions'])->name('api.questions');
+    Route::get('/approve-answers', [ExamController::class, 'approveAnswers'])->name('approve.answers');
+    Route::post('/approve-answer/{answerId}', [ExamController::class, 'approveAnswer'])->name('approve.answer');
     
-    // CSV Import routes
-    Route::get('/csv-import', [CSVImportController::class, 'showImportForm'])->name('csv.import.form');
-    Route::post('/csv-import', [CSVImportController::class, 'import'])->name('csv.import');
+    // CSV Import routes moved to per-exam
+    // Route::get('/csv-import', [CSVImportController::class, 'showImportForm'])->name('csv.import.form');
+    // Route::post('/csv-import', [CSVImportController::class, 'import'])->name('csv.import');
 });
 
 // STEP 6 - Student Exam Taking Routes (Public - No Admin Authentication Required)

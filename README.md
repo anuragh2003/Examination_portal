@@ -1,61 +1,86 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+﻿# Examination Portal (Laravel)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A lightweight Laravel-based online examination portal with student management, exam creation, proctoring video capture, and auto-scoring.
 
-## About Laravel
+## 🔎 Project Summary
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Built with Laravel (PHP) and Bootstrap/Vite frontend.
+- Student-facing exam flow: login, take exam, upload proctor video, submit answers.
+- Admin-facing flow: create exams, define questions/options, view results and students.
+- Autoscore support: multiple-choice questions, answer tracking via student_answers.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 📁 Key files and major functionality
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- app/Http/Controllers/ : HTTP controllers that handle web/API requests.
+  - ExamController.php (exam lifecycle endpoints)
+  - StudentController.php (student onboarding, profile)
+  - QuestionController.php (CRUD for questions/options)
+- app/Models/ : Eloquent models for core domain objects.
+  - Exam.php, Question.php, QuestionOption.php, Student.php, Student_Answer.php, ProctorVideo.php
+- app/Services/QuestionSelector.php : exam question selection logic.
+- 
+Routes/web.php : app routes for UI pages and flows.
+- 
+Routes/api.php : API route definitions if used by JS/front-end.
+- 
+Resources/views/ : Blade templates for UI pages (exam dashboard, question pages, results).
+- database/migrations/ : DB schema on tables such as exams, sessions, students, questions, question_options, student_answers, proctor_videos.
+- public/storage : uploaded proctor video/media storage target.
 
-## Learning Laravel
+## ⚙️ Setup and launch (developer workflow)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+1. Clone the repository
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+   git clone https://github.com/anuragh2003/Examination_portal.git 
+   cd Examination_portal
+   `
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+2. Copy environment file and configure DB
 
-## Laravel Sponsors
+   - On Linux/macOS: cp .env.example .env
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+   Update .env values:
+   - DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD
 
-### Premium Partners
+3. Install PHP dependencies
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+   composer install
+   php artisan key:generate
+   `
 
-## Contributing
+4. Run database migrations (and optional seeding)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+   php artisan migrate
+   # optional: php artisan db:seed
+   `
 
-## Code of Conduct
+5. (Optional) Install JS dependencies for frontend assets
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+   npm install
+   npm run dev
+   # or npm run build for production
+   `
 
-## Security Vulnerabilities
+6. Create storage symlink (for file uploads)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+   php artisan storage:link
+   `
 
-## License
+7. Run local server
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+   php artisan serve
+   `
+
+   Access at http://127.0.0.1:8000.
+
+## 🛠 Troubleshooting
+
+- php artisan migrate fails: ensure DB exists and credentials match.
+- composer install fails: check PHP 8+ version, extensions (pdo_mysql, mbstring, tokenizer, xml).
+- missing .env: confirm .env.example is present.
+
+## 📌 Notes
+
+- Start by reviewing pp/Services/QuestionSelector.php and pp/Http/Controllers/ExamController.php for core exam behavior.
+- For schema changes, update migrations and model relationships under pp/Models.
+- Seed dummy data to verify flows quickly.

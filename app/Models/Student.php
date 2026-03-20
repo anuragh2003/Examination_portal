@@ -17,6 +17,7 @@ class Student extends Model
         'candidate_city',
         'otp',
         'otp_expires_at',
+        'shuffled_question_ids',
     ];
 
     // Relationship: Student belongs to an Exam

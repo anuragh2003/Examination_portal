@@ -9,6 +9,10 @@
         <p class="text-gray-600">Complete examination management system with intelligent question selection</p>
       </div>
       <div class="flex gap-3">
+        <a href="{{ route('approve.answers') }}" 
+           class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition font-medium shadow-md">
+          ✅ Approve Answers
+        </a>
         <a href="#" id="manage-questions-btn" 
            class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition font-medium shadow-md">
           📚 Manage Questions
@@ -86,9 +90,6 @@
         <div class="flex-1">
           <h3 class="text-lg font-semibold mb-2">Quick Actions</h3>
           <div class="flex flex-wrap gap-3">
-            <button id="bulk-import-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
-              📥 Import Questions
-            </button>
             <button id="export-all-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition">
               📤 Export Data
             </button>
@@ -157,7 +158,7 @@
           </a>
 
           <form action="{{ route('exams.destroy', $exam->uuid) }}" method="POST" 
-                onsubmit="return confirm('Are you sure you want to delete this exam?')">
+                onsubmit="return handleDelete(event)">
             @csrf
             @method('DELETE')
             <button type="submit" 
@@ -314,9 +315,6 @@ function displayQuestions(questions) {
     let html = `
         <div class="mb-4 flex justify-between items-center">
             <h4 class="font-semibold">Total Questions: ${questions.length}</h4>
-            <button onclick="handleBulkImport()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                Import More
-            </button>
         </div>
         <div class="space-y-3 max-h-96 overflow-y-auto">
     `;
@@ -426,7 +424,7 @@ function exportQuestions() {
             }
         })
         .catch(error => {
-            alert('Error exporting questions: ' + error.message);
+            showError('Error exporting questions: ' + error.message, 'Export Failed');
         });
 }
 
@@ -653,27 +651,42 @@ function previewExam(uuid) {
     window.open(`/exams/${uuid}/preview`, '_blank');
 }
 
+function handleDelete(event) {
+    event.preventDefault();
+    const form = event.target;
+    showCustomConfirm('Are you sure you want to delete this exam?', 'Delete Exam')
+        .then(confirmed => {
+            if (confirmed) {
+                form.submit();
+            }
+        });
+    return false;
+}
+
 function deleteExam(uuid) {
-    if (confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/exams/${uuid}`;
-        
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = '_token';
-        csrfToken.value = '{{ csrf_token() }}';
-        
-        const methodField = document.createElement('input');
-        methodField.type = 'hidden';
-        methodField.name = '_method';
-        methodField.value = 'DELETE';
-        
-        form.appendChild(csrfToken);
-        form.appendChild(methodField);
-        document.body.appendChild(form);
-        form.submit();
-    }
+    showCustomConfirm('Are you sure you want to delete this exam? This action cannot be undone.', 'Delete Exam')
+        .then(confirmed => {
+            if (confirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/exams/${uuid}`;
+                
+                const csrfToken = document.createElement('input');
+                csrfToken.type = 'hidden';
+                csrfToken.name = '_token';
+                csrfToken.value = '{{ csrf_token() }}';
+                
+                const methodField = document.createElement('input');
+                methodField.type = 'hidden';
+                methodField.name = '_method';
+                methodField.value = 'DELETE';
+                
+                form.appendChild(csrfToken);
+                form.appendChild(methodField);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
 }
 
 // Close modal when clicking outside

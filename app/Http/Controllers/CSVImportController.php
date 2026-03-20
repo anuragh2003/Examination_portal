@@ -12,16 +12,18 @@ class CSVImportController extends Controller
     /**
      * Display the CSV import form
      */
-    public function showImportForm()
+    public function showImportForm(string $examUuid)
     {
-        return view('admin.csv-import');
+        $exam = \App\Models\Exam::where('uuid', $examUuid)->firstOrFail();
+        return view('admin.csv-import', compact('exam'));
     }
 
     /**
      * Process CSV file and import questions
      */
-    public function import(Request $request)
+    public function import(Request $request, string $examUuid)
     {
+        $exam = \App\Models\Exam::where('uuid', $examUuid)->firstOrFail();
         // Validate the uploaded file
         $validator = Validator::make($request->all(), [
             'csv_file' => 'required|file|mimes:csv,txt|max:2048',
@@ -53,7 +55,7 @@ class CSVImportController extends Controller
 
             foreach ($csvData as $rowIndex => $row) {
                 try {
-                    $questionData = $this->parseCSVRow($header, $row);
+                    $questionData = $this->parseCSVRow($header, $row, $exam->id);
                     
                     if ($this->importQuestion($questionData)) { // returns true if imported, false if duplicate
                         $importStats['imported']++;
@@ -84,7 +86,7 @@ class CSVImportController extends Controller
     /**
      * Parse CSV row into question data structure
      */
-    private function parseCSVRow($header, $row)
+    private function parseCSVRow($header, $row, int $examId)
     {
         $data = array_combine($header, $row); // combine header and row to associative array
         
@@ -98,7 +100,7 @@ class CSVImportController extends Controller
 
         // Parse options for MCQ questions
         $options = [];
-        if (in_array($data['type'], ['mcq_single', 'mcq_multiple'])) { // MCQ types for options
+        if (in_array($data['type'], ['mcq_single', 'mcq_multiple', 'mcq'])) { // MCQ types for options, including 'mcq' as alias
             for ($i = 1; $i <= 6; $i++) { // Support up to 6 options
                 $optionKey = "option_{$i}"; // option key
                 $correctKey = "correct_{$i}"; // correct answer key
@@ -117,13 +119,20 @@ class CSVImportController extends Controller
             }
         }
 
+        // Map 'mcq' to 'mcq_single' for database compatibility
+        $type = $data['type'];
+        if ($type === 'mcq') {
+            $type = 'mcq_single';
+        }
+
         return [ // return parsed question data
             'text' => trim($data['question_text']),
-            'type' => $data['type'],
+            'type' => $type,
             'marks' => (int) $data['marks'],
             'difficulty' => $data['difficulty'] ?? 'medium',
             'tags' => $data['tags'] ?? '',
             'status' => $data['status'] ?? 'active',
+            'exam_id' => $examId,
             'options' => $options
         ];
     }
@@ -133,11 +142,11 @@ class CSVImportController extends Controller
      */
     private function importQuestion($questionData)
     {
-        // Generate import hash to prevent duplicates
-        $hashData = $questionData['text'] . '|' . 
+        // Generate import hash to prevent duplicates within the same exam
+        $hashData = $questionData['exam_id'] . '|' . $questionData['text'] . '|' . 
                    implode('|', array_column($questionData['options'], 'text')) . '|' . 
                    $questionData['marks'];
-        $importHash = hash('sha256', $hashData); // unique hash for this question sha256 is for security
+        $importHash = hash('sha256', $hashData); // unique hash for this question within the exam
 
         // Check if question already exists
         if (DB::table('questions')->where('import_hash', $importHash)->exists()) {
@@ -152,6 +161,7 @@ class CSVImportController extends Controller
             'difficulty' => $questionData['difficulty'],
             'tags' => $questionData['tags'],
             'status' => $questionData['status'],
+            'exam_id' => $questionData['exam_id'],
             'import_hash' => $importHash,
             'created_at' => now(),
             'updated_at' => now()

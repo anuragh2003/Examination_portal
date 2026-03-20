@@ -60,14 +60,14 @@
                             <button type="button" class="btn btn-info" id="export-exam">
                                 <i class="fas fa-download"></i> Export
                             </button>
+                            <a href="{{ route('exams.import.form', $exam->uuid) }}" class="btn btn-secondary">
+                                <i class="fas fa-upload"></i> Import Questions
+                            </a>
                             <button type="button" class="btn btn-warning" id="copy-link">
                                 <i class="fas fa-copy"></i> Copy Link
                             </button>
                         </div>
                         <div class="btn-group" role="group">
-                            <a href="{{ route('csv.import.form') }}" class="btn btn-secondary">
-                                <i class="fas fa-upload"></i> Import Questions
-                            </a>
                             <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left"></i> Back to Dashboard
                             </a>
@@ -155,8 +155,9 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * Regenerate questions using QuestionSelector
      */
-    function regenerateQuestions() {
-        if (!confirm('This will replace all current questions with newly selected ones. Continue?')) {
+    async function regenerateQuestions() {
+        const confirmed = await showCustomConfirm('This will replace all current questions with newly selected ones. Continue?', 'Regenerate Questions');
+        if (!confirmed) {
             return;
         }
         
@@ -202,12 +203,31 @@ document.addEventListener('DOMContentLoaded', function() {
      * Copy exam link for candidates
      */
     function copyExamLink() {
-        const examUrl = `${window.location.origin}/exam/${examUuid}`;
-        navigator.clipboard.writeText(examUrl).then(() => {
-            showSuccess('Exam link copied to clipboard!');
-        }).catch(() => {
-            // Fallback for browsers that don't support clipboard API
-            prompt('Copy this exam link:', examUrl);
+        fetch(`/exams/${examUuid}/create-instance`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const examUrl = `${window.location.origin}/exam/${data.instance_uuid}`;
+                navigator.clipboard.writeText(examUrl).then(() => {
+                    const message = `✅ New exam link created and copied!\n\n🔗 Link: ${examUrl}\n\n📝 Questions will be uniquely shuffled for each student when they register.`;
+                    showSuccess(message);
+                }).catch(() => {
+                    const message = `Copy this exam link:\n${examUrl}\n\nQuestions will be uniquely shuffled for each student when they register.`;
+                    showInfo(message, 'Exam Link Created');
+                });
+            } else {
+                showError('Failed to create exam link: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error creating exam instance:', error);
+            showError('Error creating exam link. Please try again.');
         });
     }
     
@@ -277,8 +297,9 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * Remove a specific question from exam
      */
-    window.removeQuestion = function(questionId) {
-        if (!confirm('Remove this question from the exam?')) {
+    window.removeQuestion = async function(questionId) {
+        const confirmed = await showCustomConfirm('Remove this question from the exam?', 'Remove Question');
+        if (!confirmed) {
             return;
         }
         

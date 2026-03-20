@@ -80,6 +80,7 @@
                         <li>**Proctoring is active**: Do not switch tabs or leave the browser window after starting.</li>
                         <li>The exam timer **cannot be paused** once started.</li>
                         <li>Ensure you have a **stable internet connection** before proceeding.</li>
+                        <li>WARNING: If you stop screen sharing or recording or try to leave the examination tab, the exam will be automatically submitted.</li>
                     </ul>
                 </div>
             </div>

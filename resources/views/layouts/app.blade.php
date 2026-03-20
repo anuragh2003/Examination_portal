@@ -90,11 +90,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ route('csv.import.form') }}">
-                            <i class="fas fa-upload"></i> Import Questions
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{{ route('exams.create') }}">
                             <i class="fas fa-plus"></i> Create Exam
                         </a>
@@ -159,6 +154,45 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- Custom Confirm Modal -->
+    <div class="modal fade" id="customConfirmModal" tabindex="-1" aria-labelledby="customConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="customConfirmModalLabel">Confirm Action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="confirmModalBody">
+                    Are you sure?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="confirmYesBtn">Yes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Prompt Modal -->
+    <div class="modal fade" id="customPromptModal" tabindex="-1" aria-labelledby="customPromptModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="customPromptModalLabel">Input Required</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="promptModalMessage">Enter value:</p>
+                    <input type="text" class="form-control" id="promptInput" placeholder="Enter value">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="promptOkBtn">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Custom JS -->
     <script>
         // Auto-hide alerts after 5 seconds
@@ -171,6 +205,121 @@
                 }
             });
         }, 5000);
+
+        // Custom alert functions to replace browser alerts
+        function showCustomAlert(message, type = 'info', title = 'Message') {
+            const modal = new bootstrap.Modal(document.getElementById('customAlertModal'));
+            const modalHeader = document.getElementById('modalHeader');
+            const modalBody = document.getElementById('modalBody');
+            const modalTitle = document.getElementById('customAlertModalLabel');
+            
+            // Set title
+            modalTitle.textContent = title;
+            
+            // Set message
+            modalBody.textContent = message;
+            
+            // Set header color based on type
+            modalHeader.className = 'modal-header';
+            if (type === 'success') {
+                modalHeader.classList.add('bg-success', 'text-white');
+            } else if (type === 'error' || type === 'danger') {
+                modalHeader.classList.add('bg-danger', 'text-white');
+            } else if (type === 'warning') {
+                modalHeader.classList.add('bg-warning');
+            } else {
+                modalHeader.classList.add('bg-primary', 'text-white');
+            }
+            
+            modal.show();
+        }
+
+        // Convenience functions
+        function showSuccess(message, title = 'Success') {
+            showCustomAlert(message, 'success', title);
+        }
+
+        function showError(message, title = 'Error') {
+            showCustomAlert(message, 'error', title);
+        }
+
+        function showWarning(message, title = 'Warning') {
+            showCustomAlert(message, 'warning', title);
+        }
+
+        function showInfo(message, title = 'Information') {
+            showCustomAlert(message, 'info', title);
+        }
+
+        // Custom confirm function to replace browser confirm
+        function showCustomConfirm(message, title = 'Confirm Action') {
+            return new Promise((resolve) => {
+                const modal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
+                const modalBody = document.getElementById('confirmModalBody');
+                const modalTitle = document.getElementById('customConfirmModalLabel');
+                
+                modalTitle.textContent = title;
+                modalBody.textContent = message;
+                
+                const yesBtn = document.getElementById('confirmYesBtn');
+                const noBtn = modal._element.querySelector('.btn-secondary');
+                
+                const handleYes = () => {
+                    modal.hide();
+                    resolve(true);
+                    yesBtn.removeEventListener('click', handleYes);
+                    noBtn.removeEventListener('click', handleNo);
+                };
+                
+                const handleNo = () => {
+                    modal.hide();
+                    resolve(false);
+                    yesBtn.removeEventListener('click', handleYes);
+                    noBtn.removeEventListener('click', handleNo);
+                };
+                
+                yesBtn.addEventListener('click', handleYes);
+                noBtn.addEventListener('click', handleNo);
+                
+                modal.show();
+            });
+        }
+
+        // Custom prompt function to replace browser prompt
+        function showCustomPrompt(message, defaultValue = '', title = 'Input Required') {
+            return new Promise((resolve) => {
+                const modal = new bootstrap.Modal(document.getElementById('customPromptModal'));
+                const modalTitle = document.getElementById('customPromptModalLabel');
+                const modalMessage = document.getElementById('promptModalMessage');
+                const input = document.getElementById('promptInput');
+                
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+                input.value = defaultValue;
+                
+                const okBtn = document.getElementById('promptOkBtn');
+                const cancelBtn = modal._element.querySelector('.btn-secondary');
+                
+                const handleOk = () => {
+                    modal.hide();
+                    resolve(input.value);
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                };
+                
+                const handleCancel = () => {
+                    modal.hide();
+                    resolve(null);
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                };
+                
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+                
+                modal.show();
+            });
+        }
     </script>
     
     @stack('scripts')

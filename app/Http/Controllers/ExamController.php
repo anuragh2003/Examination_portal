@@ -127,7 +127,7 @@ public function update(Request $request, $uuid)
             }
             
             // Use QuestionSelector to find optimal questions
-            $selectionResult = $selector->selectQuestions($exam->total_marks, $filters); // returns array with 'success', 'questions', 'question_count', 'total_marks', etc.
+            $selectionResult = $selector->selectQuestions($exam->total_marks, $filters, $exam->id); // pass exam_id
             
             if (!$selectionResult['success']) { // failed to find suitable questions
                 return response()->json([ 
@@ -498,6 +498,59 @@ public function update(Request $request, $uuid)
         }
     }
 
+    /**
+     * Show pending descriptive answers for approval
+     */
+    public function approveAnswers()
+    {
+        $pendingAnswers = DB::table('student_answers')
+            ->join('students', 'student_answers.student_id', '=', 'students.id')
+            ->join('questions', 'student_answers.question_id', '=', 'questions.id')
+            ->join('exams', 'student_answers.exam_id', '=', 'exams.id')
+            ->where('student_answers.status', 'pending')
+            ->where('questions.type', 'descriptive')
+            ->select(
+                'student_answers.id',
+                'student_answers.answer_text',
+                'student_answers.awarded_marks',
+                'students.candidate_name',
+                'students.candidate_email',
+                'questions.text as question_text',
+                'questions.marks as max_marks',
+                'exams.name as exam_name'
+            )
+            ->get();
+
+        return view('admin.approve-answers', compact('pendingAnswers'));
+    }
+
+    /**
+     * Approve or reject a descriptive answer
+     */
+    public function approveAnswer(Request $request, $answerId)
+    {
+        $request->validate([
+            'action' => 'required|in:approve,reject',
+            'marks' => 'nullable|integer|min:0'
+        ]);
+
+        $answer = DB::table('student_answers')->where('id', $answerId)->first();
+        if (!$answer) {
+            return response()->json(['success' => false, 'message' => 'Answer not found']);
+        }
+
+        $status = $request->action === 'approve' ? 'approved' : 'rejected';
+        $marks = $request->action === 'approve' ? ($request->marks ?? $answer->awarded_marks) : 0;
+
+        DB::table('student_answers')
+            ->where('id', $answerId)
+            ->update([
+                'status' => $status,
+                'awarded_marks' => $marks
+            ]);
+
+        return response()->json(['success' => true, 'message' => 'Answer ' . $status]);
+    }
     
     // HELPER METHODS
 
@@ -553,4 +606,38 @@ public function update(Request $request, $uuid)
         
         return $text;
     }
+    /**
+     * Create a new exam instance with intelligently shuffled questions
+     * Uses QuestionSelector to get questions that exactly match exam's total_marks
+     * Each call generates a NEW random combination from available questions
+     */
+    public function createExamInstance(Request $request, string $uuid): JsonResponse
+    {
+        try {
+            $exam = Exam::where('uuid', $uuid)->firstOrFail();
+            
+            // Create exam instance without shuffling questions yet
+            // Questions will be shuffled when the first student registers
+            $examInstance = \App\Models\ExamInstance::create([
+                'exam_id' => $exam->id,
+                'shuffled_question_ids' => null // Will be set when student registers
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'instance_uuid' => $examInstance->uuid,
+                'question_count' => 0, // Will be determined when shuffled
+                'total_marks' => 0, // Will be determined when shuffled
+                'algorithm_used' => 'Not shuffled yet'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error creating exam instance: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
+
+

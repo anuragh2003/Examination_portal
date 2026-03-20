@@ -69,7 +69,7 @@
 
     <!-- Summary Statistics -->
     <h2 class="text-2xl font-bold text-gray-700 mb-5 border-b pb-2">Assessment Summary</h2>
-    <div class="mb-12 grid grid-cols-3 gap-6 text-center">
+    <div class="mb-12 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
         <!-- Total -->
         <div class="p-6 bg-indigo-50 border-b-4 border-indigo-600 rounded-xl shadow-lg transform hover:scale-[1.02] transition duration-200">
             <p class="text-5xl font-extrabold text-indigo-800">{{ $summary['total_questions'] ?? 0 }}</p>
@@ -84,6 +84,11 @@
         <div class="p-6 bg-red-50 border-b-4 border-red-600 rounded-xl shadow-lg transform hover:scale-[1.02] transition duration-200">
             <p class="text-5xl font-extrabold text-red-700">{{ $summary['unattempted'] ?? 0 }}</p>
             <p class="text-base font-semibold text-red-700 mt-2">Unattempted</p>
+        </div>
+        <!-- Total Marks -->
+        <div class="p-6 bg-yellow-50 border-b-4 border-yellow-600 rounded-xl shadow-lg transform hover:scale-[1.02] transition duration-200">
+            <p class="text-5xl font-extrabold text-yellow-800">{{ $summary['total_marks'] ?? 0 }}</p>
+            <p class="text-base font-semibold text-yellow-700 mt-2">Total Marks</p>
         </div>
     </div>
 
@@ -115,6 +120,7 @@
                 <p class="font-bold text-xl text-gray-800 mb-3">
                     <span class="text-indigo-600 mr-2">{{ $loop->iteration }}.</span> 
                     {{ $question->text ?? 'Question not found' }}
+                    <span class="text-sm font-normal text-gray-500">({{ $question->marks ?? 0 }} marks)</span>
                 </p>
                 
                 <!-- Answer Content -->
@@ -135,6 +141,18 @@
                                 @endforeach
                             </ul>
                         @endif
+                    </div>
+                    <!-- Marks and Status -->
+                    <div class="mt-3 flex justify-between items-center">
+                        <span class="text-sm font-medium 
+                            @if($ans['status'] == 'approved') text-green-600
+                            @elseif($ans['status'] == 'rejected') text-red-600
+                            @else text-yellow-600 @endif">
+                            Status: {{ ucfirst($ans['status']) }}
+                        </span>
+                        <span class="text-lg font-bold text-blue-600">
+                            Marks: {{ $ans['awarded_marks'] }}/{{ $question->marks ?? 0 }}
+                        </span>
                     </div>
                 @else
                     <!-- Not Attempted Message -->
