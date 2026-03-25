@@ -12,11 +12,12 @@ class student_answer extends Model
         'student_id',
         'question_id',
         'answer_text',
-        'chosen_option_ids',
+        'status',
+        'awarded_marks',
     ];
 
     protected $casts = [
-        'chosen_option_ids' => 'array',
+        // 'chosen_option_ids' => 'array', // Removed, now using pivot table
     ];
 
     public function student()
@@ -32,6 +33,12 @@ class student_answer extends Model
     public function exam()
     {
         return $this->belongsTo(Exam::class);
+    }
+
+    // Relationship: StudentAnswer has many selected options
+    public function selectedOptions()
+    {
+        return $this->hasMany(StudentAnswerOption::class);
     }
 }
 

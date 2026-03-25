@@ -324,9 +324,23 @@ function showCustomConfirm(message, title = 'Confirm Action') {
     // Normal submit exam (waits for video upload)
     async function submitExam() {
         console.log("⏹️ Stopping recordings & uploading before submit...");
-        await stopRecording();
-        const form = document.getElementById('examForm');
-        form.submit();
+        try {
+            await stopRecording();
+            console.log("✅ Recordings stopped, submitting form...");
+            const form = document.getElementById('examForm');
+            console.log("📋 Form element:", form);
+            console.log("📋 Form action:", form.action);
+            
+            // Add a small delay to ensure everything is ready
+            setTimeout(() => {
+                console.log("🚀 Triggering form submission");
+                form.submit();
+            }, 500);
+        } catch (err) {
+            console.error("❌ Error during submission preparation:", err);
+            const form = document.getElementById('examForm');
+            form.submit(); // Submit anyway
+        }
     }
 
     // Start recording
@@ -340,43 +354,56 @@ function showCustomConfirm(message, title = 'Confirm Action') {
             const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             document.getElementById('cameraPreview').srcObject = cameraStream;
 
-            // Screen (video only - audio may cause issues)
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            document.getElementById('screenPreview').srcObject = screenStream;
+            // Screen (video only - optional, if user denies, continue anyway)
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                document.getElementById('screenPreview').srcObject = screenStream;
+
+                // Screen recorder
+                screenRecorder = new MediaRecorder(screenStream, { mimeType: 'video/webm; codecs=vp9' });
+                screenRecorder.ondataavailable = e => { if (e.data.size > 0) screenChunks.push(e.data); };
+                screenRecorder.start(1000);
+
+                console.log("✅ Screen recording started");
+
+                // If screen share ends early
+                screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+                    console.warn("⚠️ Screen sharing stopped early!");
+                    autoSubmitExam('Screen sharing stopped', true);
+                });
+            } catch (screenErr) {
+                console.warn("⚠️ Screen sharing denied or failed (this is optional):", screenErr.message);
+            }
 
             // Camera recorder
             cameraRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm; codecs=vp9' });
             cameraRecorder.ondataavailable = e => { if (e.data.size > 0) cameraChunks.push(e.data); };
             cameraRecorder.start(1000);
 
-            // Screen recorder
-            screenRecorder = new MediaRecorder(screenStream, { mimeType: 'video/webm; codecs=vp9' });
-            screenRecorder.ondataavailable = e => { if (e.data.size > 0) screenChunks.push(e.data); };
-            screenRecorder.start(1000);
-
-            console.log("✅ Recording started: Camera + Screen");
+            console.log("✅ Recording started: Camera");
 
             startTimer();
             disableInteractions();
 
-            // If screen share ends early
-            screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-                console.warn("⚠️ Screen sharing stopped early!");
-                autoSubmitExam('Screen sharing stopped', true);
-            });
-
         } catch (err) {
-            console.error("❌ Error starting proctoring:", err);
-            autoSubmitExam('Failed to start proctoring', true);
+            console.error("❌ Error starting recording:", err);
+            showError('Failed to start camera recording. The exam will still proceed, but proctoring will not be available. Click OK to continue.', 'Recording Error');
         }
     }
 
     // Stop a recorder
     function stopRecorder(recorder, chunks) {
         return new Promise(resolve => {
-            if (!recorder || recorder.state === 'inactive') return resolve();
+            if (!recorder || recorder.state === 'inactive') {
+                console.warn("⚠️ Recorder not active or missing");
+                return resolve();
+            }
             recorder.onstop = () => {
-                console.log("🛑 Recorder stopped:", recorder.mimeType, "Chunks:", chunks.length);
+                console.log("🛑 Recorder stopped, chunks:", chunks.length);
+                resolve();
+            };
+            recorder.onerror = (err) => {
+                console.warn("⚠️ Recorder error:", err);
                 resolve();
             };
             recorder.stop();
@@ -400,8 +427,8 @@ function showCustomConfirm(message, title = 'Confirm Action') {
         console.log("🖥️ Screen Blob size:", screenBlob.size, "chunks:", screenChunks.length);
 
         if (cameraBlob.size === 0 && screenBlob.size === 0) {
-            console.error("❌ No video data to upload");
-            return;
+            console.warn("⚠️ No video data to upload");
+            return; // Continue anyway, videos are optional
         }
 
         const formData = new FormData();
@@ -423,12 +450,12 @@ function showCustomConfirm(message, title = 'Confirm Action') {
             console.log("📤 Proctor upload response:", data);
 
             if (!data.success) {
-                console.error("❌ Upload failed:", data.message);
+                console.warn("⚠️ Upload failed but continuing with submission:", data.message);
             } else {
                 console.log("✅ Videos uploaded successfully!");
             }
         } catch (err) {
-            console.error("❌ Video upload failed:", err);
+            console.warn("⚠️ Video upload error but continuing with submission:", err);
         }
     }
 
@@ -442,23 +469,9 @@ function showCustomConfirm(message, title = 'Confirm Action') {
         );
         
         if (confirmed) {
-            // Proceed with form submission
-            document.getElementById('examForm').dispatchEvent(new Event('submit', { cancelable: true }));
+            // Proceed with form submission after stopping recordings
+            await submitExam();
         }
-    });
-
-    // Ensure form submits only after videos uploaded (for manual submit)
-    document.getElementById('examForm').addEventListener('submit', async (e) => {
-        // If this is an auto-submit (has reason field), don't wait for videos
-        const reasonField = e.target.querySelector('input[name="auto_submit_reason"]');
-        if (reasonField) {
-            // Auto-submit, let it proceed immediately
-            return;
-        }
-        
-        // Manual submit, wait for videos
-        e.preventDefault();
-        await submitExam();
     });
 
     // Start on page load - request permissions first

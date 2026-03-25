@@ -139,21 +139,52 @@ class CSVImportController extends Controller
 
     /**
      * Import a single question with its options
+     * Allows reuse of questions across exams but prevents duplicates within the same exam
      */
     private function importQuestion($questionData)
     {
-        // Generate import hash to prevent duplicates within the same exam
-        $hashData = $questionData['exam_id'] . '|' . $questionData['text'] . '|' . 
+        $examId = $questionData['exam_id'];
+        
+        // Generate import hash based on content only (NOT exam_id) to enable reuse across exams
+        $hashData = $questionData['text'] . '|' . 
                    implode('|', array_column($questionData['options'], 'text')) . '|' . 
-                   $questionData['marks'];
-        $importHash = hash('sha256', $hashData); // unique hash for this question within the exam
+                   $questionData['marks'] . '|' .
+                   $questionData['type'];
+        $importHash = hash('sha256', $hashData);
 
-        // Check if question already exists
-        if (DB::table('questions')->where('import_hash', $importHash)->exists()) {
-            return false; // Skip duplicate
+        // Check if question with this content already exists globally
+        $existingQuestion = DB::table('questions')
+            ->where('import_hash', $importHash)
+            ->first();
+
+        if ($existingQuestion) {
+            // Question exists, check if it's already linked to this exam
+            $alreadyLinked = DB::table('exam_questions')
+                ->where('exam_id', $examId)
+                ->where('question_id', $existingQuestion->id)
+                ->exists();
+
+            if ($alreadyLinked) {
+                return false; // Skip - already in this exam
+            }
+
+            // Link existing question to this exam
+            $maxPosition = DB::table('exam_questions')
+                ->where('exam_id', $examId)
+                ->max('order_position') ?? 0;
+
+            DB::table('exam_questions')->insert([
+                'exam_id' => $examId,
+                'question_id' => $existingQuestion->id,
+                'order_position' => $maxPosition + 1,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            return true; // Successfully linked existing question
         }
 
-        // Insert question
+        // Create new question (don't store exam_id in questions table)
         $questionId = DB::table('questions')->insertGetId([
             'text' => $questionData['text'],
             'type' => $questionData['type'],
@@ -161,8 +192,21 @@ class CSVImportController extends Controller
             'difficulty' => $questionData['difficulty'],
             'tags' => $questionData['tags'],
             'status' => $questionData['status'],
-            'exam_id' => $questionData['exam_id'],
+            'exam_id' => null, // Don't store exam_id here, use pivot table instead
             'import_hash' => $importHash,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        // Link question to exam via exam_questions
+        $maxPosition = DB::table('exam_questions')
+            ->where('exam_id', $examId)
+            ->max('order_position') ?? 0;
+
+        DB::table('exam_questions')->insert([
+            'exam_id' => $examId,
+            'question_id' => $questionId,
+            'order_position' => $maxPosition + 1,
             'created_at' => now(),
             'updated_at' => now()
         ]);
@@ -183,6 +227,6 @@ class CSVImportController extends Controller
             DB::table('question_options')->insert($optionsToInsert);
         }
 
-        return true; // Successfully imported
+        return true; // Successfully imported new question
     }
 }

@@ -69,33 +69,34 @@ class QuestionSelector
     private function getAvailableQuestions(array $filters = [], ?int $examId = null): Collection
     {
         $query = DB::table('questions')
-            ->where('status', 'active')  // Only active questions
-            ->select('id', 'text', 'marks', 'difficulty', 'tags', 'type');
+            ->where('questions.status', 'active')  // Only active questions
+            ->select('questions.id', 'questions.text', 'questions.marks', 'questions.difficulty', 'questions.tags', 'questions.type');
         
-        // Filter by exam_id if provided
+        // Filter by exam_id if provided - join with exam_questions to get questions for this exam
         if ($examId !== null) {
-            $query->where('exam_id', $examId);
+            $query->join('exam_questions', 'questions.id', '=', 'exam_questions.question_id')
+                  ->where('exam_questions.exam_id', $examId);
         }
         
         // Apply filters if provided
         if (!empty($filters['difficulty'])) {
-            $query->where('difficulty', $filters['difficulty']);
+            $query->where('questions.difficulty', $filters['difficulty']);
         }
         
         if (!empty($filters['tags'])) {
             $query->where(function($q) use ($filters) {
-                $q->where('tags', 'LIKE', '%' . $filters['tags'] . '%')
-                  ->orWhere('text', 'LIKE', '%' . $filters['tags'] . '%')
-                  ->orWhere('text', 'LIKE', '%' . ucfirst($filters['tags']) . '%');
+                $q->where('questions.tags', 'LIKE', '%' . $filters['tags'] . '%')
+                  ->orWhere('questions.text', 'LIKE', '%' . $filters['tags'] . '%')
+                  ->orWhere('questions.text', 'LIKE', '%' . ucfirst($filters['tags']) . '%');
             });
         }
         
         if (!empty($filters['max_marks'])) {
-            $query->where('marks', '<=', $filters['max_marks']);
+            $query->where('questions.marks', '<=', $filters['max_marks']);
         }
         
         if (!empty($filters['min_marks'])) {
-            $query->where('marks', '>=', $filters['min_marks']);
+            $query->where('questions.marks', '>=', $filters['min_marks']);
         }
         
         return collect($query->get());

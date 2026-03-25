@@ -17,12 +17,18 @@ class Student extends Model
         'candidate_city',
         'otp',
         'otp_expires_at',
-        'shuffled_question_ids',
+        'registered_at',
     ];
 
     // Relationship: Student belongs to an Exam
     public function exam()
     {
         return $this->belongsTo(Exam::class, 'exam_id');
+    }
+
+    // Relationship: Student has many question orders
+    public function questionOrders()
+    {
+        return $this->hasMany(StudentQuestionOrder::class)->orderBy('order_position');
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 use App\Models\Exam;
 use App\Models\Student;
+use App\Models\StudentQuestionOrder;
+use App\Models\StudentAnswerOption;
 use App\Models\ProctorRecord;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -83,13 +85,19 @@ public function examAccess(string $uuid)
     
      public function register(Request $request)
     {
-        // ✅ Validate student input
+        // ✅ Validate student input with strict format rules
         $request->validate([
             'exam_id' => 'required|exists:exams,id',
-            'candidate_name' => 'required|string|max:255',
-            'candidate_email' => 'required|email',
-            'candidate_contact' => 'nullable|string|max:15',
-            'candidate_city' => 'nullable|string|max:255',
+            'candidate_name' => 'required|string|max:255|regex:/^[a-zA-Z\s]+$/',
+            'candidate_email' => 'required|email|max:255',
+            'candidate_contact' => 'nullable|numeric|digits:10',
+            'candidate_city' => 'nullable|string|max:255|regex:/^[a-zA-Z\s]+$/',
+        ], [
+            'candidate_name.regex' => 'Full name can only contain letters and spaces.',
+            'candidate_contact.numeric' => 'Contact number must contain only digits.',
+            'candidate_contact.digits' => 'Contact number must be exactly 10 digits.',
+            'candidate_city.regex' => 'City can only contain letters and spaces.',
+            'candidate_email.email' => 'Please enter a valid email address.',
         ]);
 
         // ✅ Generate OTP
@@ -101,13 +109,15 @@ if ($existing) {
     $existing->delete();
 }
 
-        // ✅ Create student record
+        // ✅ Create student record with OTP fields and registered timestamp
         $student = Student::create([
             'exam_id' => $request->exam_id,
             'candidate_name' => $request->candidate_name,
             'candidate_email' => $request->candidate_email,
             'candidate_contact' => $request->candidate_contact,
             'candidate_city' => $request->candidate_city,
+            'otp' => $otp,
+            'otp_expires_at' => now()->addMinutes(10),
             'registered_at' => now(), // Add registration time
         ]);
 
@@ -119,16 +129,24 @@ if ($existing) {
         // ✅ Get exam for shuffling logic
         $exam = Exam::find($request->exam_id);
 
-        // ✅ Shuffle questions uniquely for this student
+        // ✅ Shuffle questions uniquely for this student and store in student_question_orders
         if ($exam) {
             $selector = new \App\Services\QuestionSelector();
             $selectionResult = $selector->selectQuestions($exam->total_marks, [], $exam->id);
             
-            if ($selectionResult['success']) {
+            if (!empty($selectionResult['success']) && $selectionResult['success']) {
                 $selectedQuestionIds = array_column($selectionResult['questions'], 'id');
-                $student->update([
-                    'shuffled_question_ids' => json_encode($selectedQuestionIds)
-                ]);
+
+                // Clear any existing orders (safety) and create new order entries
+                StudentQuestionOrder::where('student_id', $student->id)->delete();
+
+                foreach ($selectedQuestionIds as $order => $questionId) {
+                    StudentQuestionOrder::create([
+                        'student_id' => $student->id,
+                        'question_id' => $questionId,
+                        'order_position' => $order + 1,
+                    ]);
+                }
             }
         }
 
@@ -311,22 +329,27 @@ public function submitExam(Request $request, $uuid)
             ->with('error', 'Student session expired. Please re-register.');
     }
 
-    // Get all exam questions
-    $allQuestions = DB::table('exam_questions')
-        ->where('exam_id', $examId)
+    // Get student's specific questions from student_question_orders
+    $studentQuestionIds = StudentQuestionOrder::where('student_id', $studentId)
+        ->orderBy('order_position')
         ->pluck('question_id')
         ->toArray();
 
     $submittedAnswers = $request->input('answers', []);
     $finalAnswers = [];
 
-    foreach ($allQuestions as $questionId) {
+    foreach ($studentQuestionIds as $questionId) {
         $answerData = $submittedAnswers[$questionId] ?? [];
         $answerText = $answerData['answer_text'] ?? null;
         $chosenOptionIds = $answerData['chosen_option_ids'] ?? null;
 
+        // Handle chosen_option_ids - could be single value or array
         if (is_array($chosenOptionIds)) {
-            $chosenOptionIds = json_encode($chosenOptionIds);
+            $studentOptions = array_filter(array_map('intval', $chosenOptionIds));
+        } elseif (is_numeric($chosenOptionIds)) {
+            $studentOptions = [(int) $chosenOptionIds];
+        } else {
+            $studentOptions = [];
         }
 
         // Get question details
@@ -334,7 +357,7 @@ public function submitExam(Request $request, $uuid)
         $awardedMarks = 0;
         $status = 'pending';
 
-        if (in_array($question->type, ['mcq_single', 'mcq_multiple', 'mcq'])) {
+        if ($question && in_array($question->type, ['mcq_single', 'mcq_multiple', 'mcq'])) {
             // For MCQ, check if answers are correct
             $correctOptions = DB::table('question_options')
                 ->where('question_id', $questionId)
@@ -342,34 +365,30 @@ public function submitExam(Request $request, $uuid)
                 ->pluck('id')
                 ->toArray();
 
-            // Handle student options: could be JSON array or single value
-            if (is_array($chosenOptionIds)) {
-                $studentOptions = $chosenOptionIds;
-            } else {
-                $decoded = json_decode($chosenOptionIds, true);
-                $studentOptions = is_array($decoded) ? $decoded : (is_numeric($chosenOptionIds) ? [$chosenOptionIds] : []);
-            }
-
+            // Convert to arrays of integers and sort for comparison
+            $correctOptions = array_map('intval', $correctOptions);
+            $studentOptions = array_map('intval', $studentOptions);
             sort($correctOptions);
             sort($studentOptions);
 
-            if ($correctOptions == $studentOptions) {
-                $awardedMarks = $question->marks;
+            if (!empty($studentOptions) && $correctOptions == $studentOptions) {
+                $awardedMarks = (int) $question->marks;
                 $status = 'approved';
-            } else {
+            } elseif (!empty($studentOptions)) {
                 $status = 'rejected';
+                $awardedMarks = 0;
+            } else {
+                $status = 'pending'; // Not attempted
+                $awardedMarks = 0;
             }
-
-            // Ensure chosen_option_ids is stored as JSON
-            $chosenOptionIds = json_encode($studentOptions);
         } else {
             // Descriptive: pending for admin approval
             $status = 'pending';
-            $chosenOptionIds = null; // No options for descriptive
+            $awardedMarks = 0;
         }
 
         // ✅ Save answer with status and marks
-        student_answer::updateOrCreate(
+        $studentAnswer = student_answer::updateOrCreate(
             [
                 'exam_id' => $examId,
                 'question_id' => $questionId,
@@ -377,15 +396,29 @@ public function submitExam(Request $request, $uuid)
             ],
             [
                 'answer_text' => $answerText,
-                'chosen_option_ids' => $chosenOptionIds,
                 'status' => $status,
                 'awarded_marks' => $awardedMarks
             ]
         );
 
+        // Store selected options in normalized table for MCQ
+        if (in_array($question->type, ['mcq_single', 'mcq_multiple', 'mcq']) && !empty($studentOptions)) {
+            // Replace existing answer options if any
+            StudentAnswerOption::where('student_answer_id', $studentAnswer->id)->delete();
+
+            foreach ($studentOptions as $optionId) {
+                if (!empty($optionId) && is_numeric($optionId)) {
+                    StudentAnswerOption::create([
+                        'student_answer_id' => $studentAnswer->id,
+                        'question_option_id' => (int) $optionId,
+                    ]);
+                }
+            }
+        }
+
         $finalAnswers[$questionId] = [
             'answer_text' => $answerText,
-            'chosen_option_ids' => $answerData['chosen_option_ids'] ?? [],
+            'chosen_option_ids' => $studentOptions,
             'awarded_marks' => $awardedMarks,
             'status' => $status
         ];
@@ -394,17 +427,20 @@ public function submitExam(Request $request, $uuid)
     // Calculate total marks
     $totalMarks = array_sum(array_column($finalAnswers, 'awarded_marks'));
 
+    // Fetch student from database for accurate info
+    $student = Student::find($studentId);
+    
     // Store submission summary
     $summary = [
         'exam_name' => $exam->name,
-        'student_name' => $studentSession['name'] ?? 'N/A',
-        'student_email' => $studentSession['email'] ?? 'N/A',
+        'student_name' => $student ? $student->candidate_name : ($studentSession['name'] ?? 'N/A'),
+        'student_email' => $student ? $student->candidate_email : ($studentSession['email'] ?? 'N/A'),
         'submitted_at' => now()->toDateTimeString(),
-        'total_questions' => count($allQuestions),
+        'total_questions' => count($studentQuestionIds),
         'attempted' => count(array_filter($finalAnswers, function ($ans) {
             return !empty($ans['answer_text']) || !empty($ans['chosen_option_ids']);
         })),
-        'unattempted' => count($allQuestions) - count(array_filter($finalAnswers, function ($ans) {
+        'unattempted' => count($studentQuestionIds) - count(array_filter($finalAnswers, function ($ans) {
             return !empty($ans['answer_text']) || !empty($ans['chosen_option_ids']);
         })),
         'total_marks' => $totalMarks,
@@ -592,33 +628,40 @@ private function getExamQuestions(int $examId, ?string $instanceUuid = null)
 {
     // Get student from session
     $studentId = session('student_id');
-    $student = $studentId ? Student::find($studentId) : null;
-    
-    if ($student && $student->shuffled_question_ids) {
-        // Use student's shuffled questions
-        $shuffledIds = json_decode($student->shuffled_question_ids, true);
-        $questions = DB::table('questions')
-            ->whereIn('id', $shuffledIds)
-            ->orderByRaw("FIELD(id, " . implode(',', $shuffledIds) . ")")
-            ->get();
-    } elseif ($instanceUuid) {
+
+    $questions = collect();
+
+    // 1) If student has question orders, use that exact sequence
+    if ($studentId) {
+        $orderedQuestionIds = StudentQuestionOrder::where('student_id', $studentId)
+            ->orderBy('order_position')
+            ->pluck('question_id')
+            ->toArray();
+
+        if (!empty($orderedQuestionIds)) {
+            $questions = DB::table('questions')
+                ->whereIn('id', $orderedQuestionIds)
+                ->orderByRaw("FIELD(id, " . implode(',', $orderedQuestionIds) . ")")
+                ->get();
+        }
+    }
+
+    // 2) If we have an exam instance shuffle and no student orders, use instance values
+    if ($questions->isEmpty() && $instanceUuid) {
         $instance = ExamInstance::where('uuid', $instanceUuid)->first();
         if ($instance && $instance->shuffled_question_ids) {
             $shuffledIds = json_decode($instance->shuffled_question_ids, true);
-            $questions = DB::table('questions')
-                ->whereIn('id', $shuffledIds)
-                ->orderByRaw("FIELD(id, " . implode(',', $shuffledIds) . ")")
-                ->get();
-        } else {
-            // Fallback to fixed questions
-            $questions = DB::table('exam_questions')
-                ->leftJoin('questions', 'exam_questions.question_id', '=', 'questions.id')
-                ->where('exam_questions.exam_id', $examId)
-                ->select('questions.*', 'exam_questions.order_position')
-                ->orderBy('exam_questions.order_position')
-                ->get();
+            if (!empty($shuffledIds)) {
+                $questions = DB::table('questions')
+                    ->whereIn('id', $shuffledIds)
+                    ->orderByRaw("FIELD(id, " . implode(',', $shuffledIds) . ")")
+                    ->get();
+            }
         }
-    } else {
+    }
+
+    // 3) If still empty, fallback to exam_questions list (default full exam set)
+    if ($questions->isEmpty()) {
         $questions = DB::table('exam_questions')
             ->leftJoin('questions', 'exam_questions.question_id', '=', 'questions.id')
             ->where('exam_questions.exam_id', $examId)
@@ -626,7 +669,7 @@ private function getExamQuestions(int $examId, ?string $instanceUuid = null)
             ->orderBy('exam_questions.order_position')
             ->get();
     }
-    
+
     // Load options for MCQ questions
     foreach ($questions as $question) {
         if (in_array($question->type, ['mcq_single', 'mcq_multiple'])) {
@@ -636,7 +679,7 @@ private function getExamQuestions(int $examId, ?string $instanceUuid = null)
                 ->get();
         }
     }
-    
+
     return $questions;
 }
     

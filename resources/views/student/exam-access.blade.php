@@ -105,6 +105,8 @@
                     <input type="text" name="candidate_name" id="candidate_name" required 
                             value="{{ old('candidate_name') }}"
                             placeholder="Enter your full name"
+                            pattern="[a-zA-Z\s]+"
+                            title="Only letters and spaces are allowed"
                             class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_name') border-red-500 ring-red-100 @enderror">
                     @error('candidate_name')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -131,6 +133,10 @@
                         <input type="text" name="candidate_contact" id="candidate_contact"
                                 value="{{ old('candidate_contact') }}"
                                 placeholder="Enter your contact number"
+                                pattern="[0-9]{10}"
+                                title="Contact number must be exactly 10 digits"
+                                maxlength="10"
+                                inputmode="numeric"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_contact') border-red-500 ring-red-100 @enderror">
                         @error('candidate_contact')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -143,6 +149,8 @@
                         <input type="text" name="candidate_city" id="candidate_city"
                                 value="{{ old('candidate_city') }}"
                                 placeholder="Enter your city"
+                                pattern="[a-zA-Z\s]+"
+                                title="Only letters and spaces are allowed"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_city') border-red-500 ring-red-100 @enderror">
                         @error('candidate_city')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -175,6 +183,37 @@
     <!-- Removed intrusive back-button warning JS logic for better pre-exam UX -->
     
     <script>
+        // Real-time input validation
+        
+        // Full Name: Only letters and spaces
+        const candidateName = document.getElementById('candidate_name');
+        if (candidateName) {
+            candidateName.addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+            });
+        }
+
+        // Contact Number: Only digits, max 10
+        const candidateContact = document.getElementById('candidate_contact');
+        if (candidateContact) {
+            candidateContact.addEventListener('input', function(e) {
+                // Remove non-digit characters
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                // Limit to 10 digits
+                if (e.target.value.length > 10) {
+                    e.target.value = e.target.value.slice(0, 10);
+                }
+            });
+        }
+
+        // City: Only letters and spaces
+        const candidateCity = document.getElementById('candidate_city');
+        if (candidateCity) {
+            candidateCity.addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+            });
+        }
+
         // Simple form submission feedback
         document.querySelector('form').addEventListener('submit', function(e) {
             const consent = document.getElementById('consent').checked;

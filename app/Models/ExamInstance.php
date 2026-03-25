@@ -13,7 +13,6 @@ class ExamInstance extends Model
     protected $fillable = [
         'uuid',
         'exam_id',
-        'shuffled_question_ids'
     ];
 
     protected static function boot(): void
