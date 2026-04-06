@@ -11,17 +11,25 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('proctor_videos', function (Blueprint $table) {
+        Schema::create('proctor_screenshots', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('student_id');
             $table->unsignedBigInteger('exam_id');
-            $table->enum('type', ['camera', 'screen']);
-            $table->string('filename'); // stored filename
+            $table->enum('frame_type', ['screen', 'face']); // type of screenshot
+            $table->unsignedInteger('frame_number'); // frame sequence number
+            $table->dateTime('timestamp'); // when screenshot was taken
+            $table->string('filename'); // stored filename with path
             $table->string('original_name'); // original file name
-            $table->string('mime_type');
+            $table->string('mime_type'); // image/jpeg, image/png
             $table->bigInteger('size'); // bytes
             $table->timestamps();
 
+            // Create indices for faster queries
+            $table->index(['student_id', 'exam_id']);
+            $table->index(['exam_id', 'frame_type']);
+            $table->index('frame_number');
+
+            // Foreign keys
             $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
             $table->foreign('exam_id')->references('id')->on('exams')->onDelete('cascade');
         });
@@ -32,6 +40,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('proctor_videos');
+        Schema::dropIfExists('proctor_screenshots');
     }
 };

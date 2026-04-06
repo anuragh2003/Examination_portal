@@ -1,101 +1,177 @@
 ﻿# Examination Portal (Laravel)
 
-A lightweight Laravel-based online examination portal with student management, exam creation, proctoring video capture, and auto-scoring.
+A comprehensive Laravel-based online examination portal with student management, exam creation, screenshot-based proctoring, and automated scoring.
 
-## 🔎 Project Summary
+## 🔎 Project Overview
 
-- Built with Laravel (PHP) and Bootstrap/Vite frontend.
-- Student-facing exam flow: login, take exam, upload proctor video, submit answers.
-- Admin-facing flow: create exams, define questions/options, view results and students.
-- Autoscore support: multiple-choice questions, answer tracking via student_answers.
+- **Framework**: Laravel 12.x with PHP 8.2+
+- **Frontend**: Bootstrap + Vite for modern UI
+- **Database**: MySQL with Eloquent ORM
+- **Features**:
+  - Student exam flow with screenshot proctoring
+  - Admin dashboard for exam management
+  - Auto-scoring for multiple choice questions
+  - Descriptive answer approval system
+  - Real-time exam monitoring
 
-## 📁 Key files and major functionality
+## 🚀 Quick Start
 
-- pp/Http/Controllers/ : HTTP controllers that handle web/API requests.
-  - ExamController.php (exam lifecycle endpoints)
-  - StudentController.php (student onboarding, profile)
-  - QuestionController.php (CRUD for questions/options)
-- pp/Models/ : Eloquent models for core domain objects.
-  - Exam.php, Question.php, QuestionOption.php, Student.php, Student_Answer.php, ProctorVideo.php
-- pp/Services/QuestionSelector.php : exam question selection logic.
-- 
-Routes/web.php : app routes for UI pages and flows.
-- 
-Routes/api.php : API route definitions if used by JS/front-end.
-- 
-Resources/views/ : Blade templates for UI pages (exam dashboard, question pages, results).
-- database/migrations/ : DB schema on tables such as exams, sessions, students, questions, question_options, student_answers, proctor_videos.
-- public/storage : uploaded proctor video/media storage target.
+### For New Users (First Time Setup)
 
-## ⚙️ Setup and launch (developer workflow)
-
-1. Clone the repository
-
-   `ash
+1. **Clone the repository**
+   ```bash
    git clone https://github.com/anuragh2003/Examination_portal.git Examination_portal
    cd Examination_portal
-   `
+   ```
 
-2. Copy environment file and configure DB
-
-   - On Linux/macOS: cp .env.example .env
-   - On Windows PowerShell: Copy-Item .env.example .env
-
-   Update .env values:
-   - DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD
-
-3. Install PHP dependencies
-
-   `ash
+2. **Install PHP dependencies**
+   ```bash
    composer install
+   ```
+
+3. **Environment setup**
+   ```bash
+   # Copy environment file
+   cp .env.example .env  # Linux/Mac
+   # OR
+   copy .env.example .env  # Windows
+
+   # Generate application key
    php artisan key:generate
-   `
+   ```
 
-4. Run database migrations (and optional seeding)
+4. **Database configuration**
+   - Open `.env` file and update database settings:
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=examination_portal
+   DB_USERNAME=your_username
+   DB_PASSWORD=your_password
+   ```
 
-   `ash
+5. **Database setup**
+   ```bash
+   # Create database (if not exists)
+   # Run migrations
    php artisan migrate
-   # optional: php artisan db:seed
-   `
 
-5. (Optional) Install JS dependencies for frontend assets
+   # Optional: Seed with sample data
+   php artisan db:seed
+   ```
 
-   `ash
-   npm install
-   npm run dev
-   # or npm run build for production
-   `
-
-6. Create storage symlink (for file uploads)
-
-   `ash
+7. **Storage setup**
+   ```bash
+   # Create symlink for file uploads
    php artisan storage:link
-   `
+   ```
 
-7. Run local server
-
-   `ash
+8. **Start the server**
+   ```bash
    php artisan serve
-   `
+   ```
+   Access at: http://127.0.0.1:8000
 
-   Access at http://127.0.0.1:8000.
+### For Existing Users (Updating Code)
+
+If you already have the project and want to update to the latest version:
+
+1. **Pull latest changes**
+   ```bash
+   git pull origin main
+   ```
+
+2. **Update dependencies**
+   ```bash
+   composer install
+   npm install  # if package.json changed
+   ```
+
+3. **Database updates**
+   ```bash
+   # Run new migrations (safe to run multiple times)
+   php artisan migrate
+
+   # Clear caches
+   php artisan config:clear
+   php artisan cache:clear
+   php artisan view:clear
+   ```
+
+4. **Rebuild assets (if needed)**
+   ```bash
+   npm run build
+   ```
+
+5. **Restart server**
+   ```bash
+   php artisan serve
+   ```
+
+## 📁 Project Structure
+
+```
+app/
+├── Http/Controllers/     # Request handlers
+│   ├── ExamController.php    # Exam management
+│   ├── StudentController.php # Student operations
+│   └── UserController.php    # Authentication
+├── Models/              # Database models
+│   ├── Exam.php
+│   ├── Question.php
+│   ├── Student.php
+│   └── ProctorScreenshot.php
+└── Services/            # Business logic
+    └── QuestionSelector.php
+
+resources/views/         # Blade templates
+database/migrations/     # Database schema
+routes/                  # Route definitions
+```
 
 ## 🧪 Testing
 
-- Run PHPUnit tests:
+```bash
+# Run all tests
+./vendor/bin/phpunit
 
-  `ash
-  ./vendor/bin/phpunit
-  `
+# Run specific test file
+./vendor/bin/phpunit tests/Feature/ExampleTest.php
+```
 
 ## 🛠 Troubleshooting
 
-- php artisan migrate fails: ensure DB exists and credentials match.
-- composer install fails: check PHP 8+ version, extensions (pdo_mysql, mbstring, tokenizer, xml).
-- missing .env: confirm .env.example is present.
+### Common Issues
 
-## 📌 Notes for teammates
+- **Migration fails**: Ensure database exists and credentials are correct
+- **Composer install fails**: Check PHP version (8.2+) and required extensions
+- **Assets not loading**: Run `npm run dev` or `npm run build`
+- **Permission errors**: Check storage folder permissions
 
-- Start by reviewing pp/Services/QuestionSelector.php and pp/Http/Controllers/ExamController.php for core exam behavior.
-- For schema changes, update migrations and model relationships under pp/Models.
-- Seed dummy data to verify flows quickly.
+### Required PHP Extensions
+- pdo_mysql
+- mbstring
+- tokenizer
+- xml
+- ctype
+- json
+- bcmath
+
+## 🔐 Default Credentials
+
+- **Admin Login**: `admin@email.com` / Check your database
+- **Student Access**: Via exam invitation links
+
+## 📝 Development Notes
+
+- Core exam logic: `app/Services/QuestionSelector.php`
+- Proctoring: Screenshot-based (no video recording)
+- Scoring: Auto-scoring for MCQ, manual approval for descriptive answers
+- File uploads: Stored in `storage/app/public/screenshots/`
+
+## 🤝 Contributing
+
+1. Create feature branch from `main`
+2. Make changes with proper testing
+3. Submit pull request with description

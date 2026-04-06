@@ -9,9 +9,9 @@
         <p class="text-gray-600">Complete examination management system with intelligent question selection</p>
       </div>
       <div class="flex gap-3">
-        <a href="{{ route('approve.answers') }}" 
-           class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition font-medium shadow-md">
-          ✅ Approve Answers
+        <a href="{{ route('submitted.exams') }}" 
+           class="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium shadow-md">
+          📊 Submitted Exams
         </a>
         <a href="#" id="manage-questions-btn" 
            class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition font-medium shadow-md">
@@ -87,17 +87,7 @@
     <!-- Quick Actions Bar -->
     <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
       <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-        <div class="flex-1">
-          <h3 class="text-lg font-semibold mb-2">Quick Actions</h3>
-          <div class="flex flex-wrap gap-3">
-            <button id="export-all-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition">
-              📤 Export Data
-            </button>
-            <button id="analytics-btn" class="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition">
-              📊 Analytics
-            </button>
-          </div>
-        </div>
+        
         
         <!-- Search and Filter -->
         <div class="flex gap-3 items-center">
@@ -151,18 +141,28 @@
         </a>
 
         <!-- Actions -->
-        <div class="flex space-x-2 mt-auto">
+        <div class="flex space-x-2 mt-auto flex-wrap gap-1">
+          <a href="{{ route('exams.show', $exam->uuid) }}" 
+            class="bg-blue-500 text-white px-2 py-1 text-xs rounded hover:bg-blue-600 transition whitespace-nowrap">
+            👁️ View
+          </a>
+
+          <a href="{{ route('exam.screenshots', $exam->id) }}" 
+            class="bg-indigo-600 text-white px-2 py-1 text-xs rounded hover:bg-indigo-700 transition whitespace-nowrap">
+            📸 Screenshots
+          </a>
+
           <a href="{{ route('exams.edit', $exam->uuid) }}" 
-            class="bg-yellow-500 text-white px-3 py-1 text-sm rounded hover:bg-yellow-600 transition">
+            class="bg-yellow-500 text-white px-2 py-1 text-xs rounded hover:bg-yellow-600 transition whitespace-nowrap">
             Edit
           </a>
 
           <form action="{{ route('exams.destroy', $exam->uuid) }}" method="POST" 
-                onsubmit="return handleDelete(event)">
+                onsubmit="return handleDelete(event)" class="m-0">
             @csrf
             @method('DELETE')
             <button type="submit" 
-              class="bg-red-600 text-white px-3 py-1 text-sm rounded hover:bg-red-700 transition">
+              class="bg-red-600 text-white px-2 py-1 text-xs rounded hover:bg-red-700 transition whitespace-nowrap">
               Delete
             </button>
           </form>
@@ -231,11 +231,7 @@ function loadExamQuestionCounts() {
 function setupEventListeners() {
     // Question management
     document.getElementById('manage-questions-btn').addEventListener('click', openQuestionModal);
-    
-    // Quick actions
-    document.getElementById('bulk-import-btn').addEventListener('click', handleBulkImport);
-    document.getElementById('export-all-btn').addEventListener('click', handleExportAll);
-    document.getElementById('analytics-btn').addEventListener('click', showAnalytics);
+
 }
 
 /**

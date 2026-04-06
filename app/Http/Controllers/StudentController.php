@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Session;
 use App\Mail\WelcomeEmail;
 use App\Models\student_answer;
 use Illuminate\Support\Facades\Log;
-use App\Models\ProctorVideo;
+use App\Models\ProctorScreenshot;
 use App\Models\ExamInstance;
 
 class StudentController extends Controller
@@ -117,7 +117,7 @@ if ($existing) {
             'candidate_contact' => $request->candidate_contact,
             'candidate_city' => $request->candidate_city,
             'otp' => $otp,
-            'otp_expires_at' => now()->addMinutes(10),
+            'otp_expires_at' => now()->addMinutes(30),
             'registered_at' => now(), // Add registration time
         ]);
 
@@ -246,6 +246,12 @@ public function takeExam(string $uuid)
 
         // Ensure student_id is in session for getExamQuestions
         Session::put('student_id', $studentSession['student_id']);
+
+        // Set started_at timestamp if not already set
+        $student = Student::find($studentSession['student_id']);
+        if ($student && !$student->started_at) {
+            $student->update(['started_at' => now()]);
+        }
 
         // Check if exam has already been submitted by this student
         $existingSubmission = DB::table('student_answers')
@@ -397,7 +403,8 @@ public function submitExam(Request $request, $uuid)
             [
                 'answer_text' => $answerText,
                 'status' => $status,
-                'awarded_marks' => $awardedMarks
+                'awarded_marks' => $awardedMarks,
+                'submitted_at' => now()
             ]
         );
 
@@ -430,12 +437,28 @@ public function submitExam(Request $request, $uuid)
     // Fetch student from database for accurate info
     $student = Student::find($studentId);
     
+    // Calculate time taken using session start_time, fallback to student.started_at, then now.
+    if (!empty($studentSession['start_time'])) {
+        $startTime = \Carbon\Carbon::parse($studentSession['start_time']);
+    } elseif ($student && !empty($student->started_at)) {
+        $startTime = \Carbon\Carbon::parse($student->started_at);
+    } else {
+        $startTime = now();
+    }
+
+    $submittedAt = now();
+    $timeTakenSeconds = $startTime->diffInSeconds($submittedAt);
+    $timeTakenMinutes = floor($timeTakenSeconds / 60);
+    $timeTakenRemainingSeconds = $timeTakenSeconds % 60;
+    
     // Store submission summary
     $summary = [
         'exam_name' => $exam->name,
         'student_name' => $student ? $student->candidate_name : ($studentSession['name'] ?? 'N/A'),
         'student_email' => $student ? $student->candidate_email : ($studentSession['email'] ?? 'N/A'),
-        'submitted_at' => now()->toDateTimeString(),
+        'submitted_at' => $submittedAt->toDateTimeString(),
+        'time_taken_seconds' => $timeTakenSeconds,
+        'time_taken_formatted' => sprintf('%d minutes %d seconds', $timeTakenMinutes, $timeTakenRemainingSeconds),
         'total_questions' => count($studentQuestionIds),
         'attempted' => count(array_filter($finalAnswers, function ($ans) {
             return !empty($ans['answer_text']) || !empty($ans['chosen_option_ids']);
@@ -517,110 +540,137 @@ public function examSubmitted($uuid)
 
 
 
-public function uploadProctorVideos(Request $request)
+
+public function uploadProctorScreenshots(Request $request)
 {
-    $request->validate([
-        'camera_video' => 'nullable|mimes:webm,mp4,mov|max:51200',
-        'screen_video' => 'nullable|mimes:webm,mp4,mov|max:51200',
-        'student_id' => 'required|exists:students,id',
-        'exam_id' => 'required|exists:exams,id',
+    Log::info('uploadProctorScreenshots ENTRY POINT', [
+        'method' => $request->getMethod(),
+        'content_length' => request()->header('Content-Length'),
+        'content_type' => $request->header('Content-Type'),
+        'has_csrf' => $request->header('X-CSRF-TOKEN') ? 'yes' : 'no',
+        'student_id_from_request' => $request->input('student_id'),
+        'exam_id_from_request' => $request->input('exam_id'),
+        'screenshots_array_exists' => $request->has('screenshots') ? 'yes' : 'no',
+        'screenshots_count' => is_array($request->input('screenshots')) ? count($request->input('screenshots')) : 0,
+        'files_count' => count($request->files->get('screenshots', [])),
+        'all_input_keys' => array_keys($request->all())
     ]);
+
+    try {
+        $request->validate([
+            'screenshots' => 'required|array|min:1',
+            'screenshots.*.image' => 'required|image|mimes:jpeg,png,jpg|max:5120',
+            'screenshots.*.type' => 'required|in:screen,face',
+            'screenshots.*.frame_number' => 'required|integer|min:0',
+            'screenshots.*.timestamp' => 'required|date_format:Y-m-d H:i:s',
+            'student_id' => 'required|exists:students,id',
+            'exam_id' => 'required|exists:exams,id',
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $ex) {
+        Log::error('uploadProctorScreenshots validation failed', [
+            'errors' => $ex->errors(),
+            'input_keys' => array_keys($request->all()),
+            'files' => $request->allFiles()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'errors' => $ex->errors(),
+            'message' => 'Validation failed'
+        ], 422);
+    }
 
     $uploaded = [];
     $errors = [];
     $studentId = $request->student_id;
     $examId = $request->exam_id;
+    $screenshots = $request->input('screenshots');
 
-    $videos = [
-        'camera_video' => 'camera',
-        'screen_video' => 'screen',
-    ];
+    $baseDestination = storage_path('app/public/proctor_screenshots/');
+    $screenDestination = $baseDestination . 'screen/';
+    $faceDestination = $baseDestination . 'face/';
 
-    // Create destination folder with proper permissions
-    $destination = storage_path('app/public/proctor_videos/');
-    if (!file_exists($destination)) {
-        mkdir($destination, 0777, true);
-    }
-
-    foreach ($videos as $inputName => $type) {
-        if ($request->hasFile($inputName)) {
-            $file = $request->file($inputName);
-            
-            // Create unique filename to avoid conflicts
-            $randomStr = uniqid();
-            $filename = time() . '_' . $randomStr . '_' . $type . '.' . $file->getClientOriginalExtension();
-            $fullPath = $destination . $filename;
-
-            try {
-                // Move file to destination
-                $file->move($destination, $filename);
-                
-                Log::info("Proctor video file moved", [
-                    'filename' => $filename,
-                    'type' => $type,
-                    'exists' => file_exists($fullPath),
-                    'size' => file_exists($fullPath) ? filesize($fullPath) : 0
-                ]);
-
-                // Verify file was actually saved
-                if (!file_exists($fullPath)) {
-                    throw new \Exception("File was not saved to disk: $fullPath");
-                }
-
-                $fileSize = filesize($fullPath);
-                if ($fileSize === 0) {
-                    throw new \Exception("Saved file is empty: $fullPath");
-                }
-
-                // Save to database
-                $video = ProctorVideo::create([
-                    'student_id' => $studentId,
-                    'exam_id' => $examId,
-                    'type' => $type,
-                    'filename' => $filename,
-                    'original_name' => $file->getClientOriginalName(),
-                    'mime_type' => $file->getClientMimeType(),
-                    'size' => $fileSize,
-                ]);
-
-                $uploaded[] = [
-                    'id' => $video->id,
-                    'type' => $type,
-                    'filename' => $filename,
-                    'size' => $fileSize
-                ];
-
-                Log::info("Proctor video saved to database", [
-                    'video_id' => $video->id,
-                    'type' => $type,
-                    'filename' => $filename,
-                    'size' => $fileSize
-                ]);
-
-            } catch (\Exception $e) {
-                $errorMsg = "Failed to save $type video: " . $e->getMessage();
-                $errors[] = $errorMsg;
-                Log::error($errorMsg, [
-                    'type' => $type,
-                    'filename' => $filename ?? 'unknown',
-                    'exception' => $e
-                ]);
-                // Continue processing other videos instead of returning immediately
-            }
+    foreach ([$screenDestination, $faceDestination] as $dest) {
+        if (!file_exists($dest)) {
+            mkdir($dest, 0777, true);
         }
     }
 
-    // Return success if at least one video was uploaded
-    $hasUploadedVideos = !empty($uploaded);
-    
+    foreach ($screenshots as $index => $screenshotData) {
+        try {
+            if (!$request->hasFile("screenshots.{$index}.image")) {
+                throw new \Exception("No image file provided for item {$index}");
+            }
+
+            $file = $request->file("screenshots.{$index}.image");
+            $type = $screenshotData['type'];
+            $frameNumber = (int)$screenshotData['frame_number'];
+            $timestamp = $screenshotData['timestamp'];
+            $destination = $type === 'face' ? $faceDestination : $screenDestination;
+
+            $randomStr = uniqid();
+            $filename = time() . '_' . $randomStr . '_' . $type . '_frame_' . $frameNumber . '.' . $file->getClientOriginalExtension();
+            $fullPath = $destination . $filename;
+
+            $file->move($destination, $filename);
+
+            if (!file_exists($fullPath)) {
+                throw new \Exception("File was not saved to disk");
+            }
+
+            $fileSize = filesize($fullPath);
+
+            $screenshot = ProctorScreenshot::create([
+                'student_id' => $studentId,
+                'exam_id' => $examId,
+                'frame_type' => $type,
+                'frame_number' => $frameNumber,
+                'timestamp' => $timestamp,
+                'filename' => $filename,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $fileSize,
+            ]);
+
+            $uploaded[] = [
+                'id' => $screenshot->id,
+                'type' => $type,
+                'frame_number' => $frameNumber,
+                'filename' => $filename
+            ];
+
+            Log::info("Proctor screenshot saved", [
+                'screenshot_id' => $screenshot->id,
+                'student_id' => $studentId,
+                'exam_id' => $examId,
+                'type' => $type,
+                'frame_number' => $frameNumber,
+                'filename' => $filename
+            ]);
+
+        } catch (\Exception $e) {
+            $errorMsg = "Failed to save screenshot {$index}: " . $e->getMessage();
+            $errors[] = $errorMsg;
+            Log::error($errorMsg, ['stack' => $e->getTraceAsString()]);
+        }
+    }
+
+    $hasUploadedScreenshots = !empty($uploaded);
+
+    Log::info('uploadProctorScreenshots SUCCESS', [
+        'uploaded_count' => count($uploaded),
+        'error_count' => count($errors),
+        'student_id' => $studentId,
+        'exam_id' => $examId
+    ]);
+
     return response()->json([
-        'success' => $hasUploadedVideos,
+        'success' => $hasUploadedScreenshots,
+        'uploaded_count' => count($uploaded),
         'uploaded' => $uploaded,
         'errors' => $errors,
-        'message' => $hasUploadedVideos 
-            ? 'Videos uploaded successfully' 
-            : 'No videos uploaded. Errors: ' . implode(', ', $errors)
-    ], $hasUploadedVideos ? 200 : 400);
+        'message' => $hasUploadedScreenshots ? count($uploaded) . ' screenshot(s) uploaded successfully' : 'No screenshots uploaded'
+    ], $hasUploadedScreenshots ? 200 : 400);
 }
 
 

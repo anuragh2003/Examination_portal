@@ -14,9 +14,11 @@ class student_answer extends Model
         'answer_text',
         'status',
         'awarded_marks',
+        'submitted_at',
     ];
 
     protected $casts = [
+        'submitted_at' => 'datetime',
         // 'chosen_option_ids' => 'array', // Removed, now using pivot table
     ];
 

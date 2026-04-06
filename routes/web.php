@@ -44,12 +44,16 @@ Route::put('/exams/{uuid}', [ExamController::class, 'update'])->name('exams.upda
 Route::post('/exams/{uuid}/create-instance', [ExamController::class, 'createExamInstance'])->name('exam.create.instance');
     // API routes
     Route::get('/api/questions', [ExamController::class, 'getAllQuestions'])->name('api.questions');
-    Route::get('/approve-answers', [ExamController::class, 'approveAnswers'])->name('approve.answers');
+    Route::get('/submitted-exams', [ExamController::class, 'submittedExams'])->name('submitted.exams');
     Route::post('/approve-answer/{answerId}', [ExamController::class, 'approveAnswer'])->name('approve.answer');
     
     // CSV Import routes moved to per-exam
     // Route::get('/csv-import', [CSVImportController::class, 'showImportForm'])->name('csv.import.form');
     // Route::post('/csv-import', [CSVImportController::class, 'import'])->name('csv.import');
+
+    // Proctor Screenshots routes
+    Route::get('/exams/{examId}/screenshots', [ExamController::class, 'getExamScreenshots'])->name('exam.screenshots');
+    Route::get('/exams/{examId}/student/{studentId}/screenshots', [ExamController::class, 'viewProctorScreenshots'])->name('exam.view-screenshots');
 });
 
 // STEP 6 - Student Exam Taking Routes (Public - No Admin Authentication Required)
@@ -60,8 +64,16 @@ Route::prefix('exam')->middleware('web')->group(function () {
     Route::post('/{uuid}/save-answer', [StudentController::class, 'saveAnswer'])->name('exam.saveAnswer');
 Route::post('/{uuid}/submit', [StudentController::class, 'submitExam'])->name('exam.submit');
 Route::get('/{uuid}/submitted', [StudentController::class, 'examSubmitted'])->name('student.exam-submitted');
-Route::post('/{uuid}/upload-proctor-videos', [StudentController::class, 'uploadProctorVideos'])
-    ->name('upload.proctor.videos');
+Route::post('/{uuid}/upload-proctor-screenshots', [StudentController::class, 'uploadProctorScreenshots'])
+    ->name('upload.proctor.screenshots')
+    ->middleware('api'); // Temporarily use API middleware instead of web
+
+// Test endpoint to verify server is responding
+Route::post('/test-upload-endpoint/{uuid}', function($uuid) {
+    \Illuminate\Support\Facades\Log::info('Test endpoint reached', ['uuid' => $uuid]);
+    return response()->json(['success' => true, 'message' => 'Server is responding']);
+})->name('test.upload.endpoint')
+->middleware('api'); // Temporarily use API middleware instead of web
 
 });
 

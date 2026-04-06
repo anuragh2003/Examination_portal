@@ -18,6 +18,11 @@ class Student extends Model
         'otp',
         'otp_expires_at',
         'registered_at',
+        'started_at',
+    ];
+
+    protected $casts = [
+        'started_at' => 'datetime',
     ];
 
     // Relationship: Student belongs to an Exam

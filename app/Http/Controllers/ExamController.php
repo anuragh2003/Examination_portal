@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Exam;
 use App\Models\User;
+use App\Models\Student;
+use App\Models\ProctorScreenshot;
 use App\Services\QuestionSelector;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class ExamController extends Controller
@@ -501,34 +504,24 @@ public function update(Request $request, $uuid)
     /**
      * Show pending descriptive answers for approval
      */
-    public function approveAnswers()
-    {
-        $pendingAnswers = DB::table('student_answers')
-            ->join('students', 'student_answers.student_id', '=', 'students.id')
-            ->join('questions', 'student_answers.question_id', '=', 'questions.id')
-            ->join('exams', 'student_answers.exam_id', '=', 'exams.id')
-            ->where('student_answers.status', 'pending')
-            ->where('questions.type', 'descriptive')
-            ->select(
-                'student_answers.id',
-                'student_answers.answer_text',
-                'student_answers.awarded_marks',
-                'students.candidate_name',
-                'students.candidate_email',
-                'questions.text as question_text',
-                'questions.marks as max_marks',
-                'exams.name as exam_name'
-            )
-            ->get();
 
-        return view('admin.approve-answers', compact('pendingAnswers'));
-    }
 
     /**
      * Approve or reject a descriptive answer
      */
     public function approveAnswer(Request $request, $answerId)
     {
+        $user = session('user'); // get user from session
+
+        if (!$user) {
+            // Redirect to login if not found in session
+            return response()->json(['success' => false, 'message' => 'Please login first.']);
+        }
+
+        if ($user->email !== 'admin@email.com') {
+            return response()->json(['success' => false, 'message' => 'Access denied. Admin only.']);
+        }
+
         $request->validate([
             'action' => 'required|in:approve,reject',
             'marks' => 'nullable|integer|min:0'
@@ -638,6 +631,160 @@ public function update(Request $request, $uuid)
             ], 500);
         }
     }
+
+    // View proctor screenshots for a student's exam
+    public function viewProctorScreenshots($examId, $studentId)
+    {
+        $user = session('user'); // get user from session
+
+        if (!$user) {
+            // Redirect to login if not found in session
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+
+        try {
+            $exam = Exam::findOrFail($examId);
+            $student = Student::findOrFail($studentId);
+
+            // Get all screenshots for this student-exam pair
+            $screenshots = ProctorScreenshot::where('exam_id', $examId)
+                ->where('student_id', $studentId)
+                ->orderBy('frame_number', 'asc')
+                ->get();
+
+            // Convert to array format for gallery
+            $imageSources = [];
+            foreach ($screenshots as $screenshot) {
+                $imageSources[] = [
+                    'id' => $screenshot->id,
+                    'url' => Storage::url('proctor_screenshots/' . 
+                        ($screenshot->frame_type === 'face' ? 'face/' : 'screen/') . 
+                        $screenshot->filename),
+                    'type' => $screenshot->frame_type,
+                    'frame_number' => $screenshot->frame_number,
+                    'timestamp' => $screenshot->timestamp->format('H:i:s')
+                ];
+            }
+
+            return view('admin.proctor-screenshots', compact('exam', 'student', 'imageSources', 'screenshots'));
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Unable to load screenshots: ' . $e->getMessage());
+        }
+    }
+
+    // Get screenshots list for exam
+    public function getExamScreenshots($examId)
+    {
+        $user = session('user'); // get user from session
+
+        if (!$user) {
+            // Redirect to login if not found in session
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+
+        try {
+            $exam = Exam::findOrFail($examId);
+
+            $students = DB::table('students')
+                ->where('exam_id', $examId)
+                ->select('id', 'candidate_name', 'candidate_email')
+                ->get()
+                ->map(function ($student) use ($examId) {
+                    $screenshotCount = ProctorScreenshot::where('exam_id', $examId)
+                        ->where('student_id', $student->id)
+                        ->count();
+
+                    return [
+                        'id' => $student->id,
+                        'name' => $student->candidate_name,
+                        'email' => $student->candidate_email,
+                        'screenshot_count' => $screenshotCount,
+                        'view_url' => route('exam.view-screenshots', ['examId' => $examId, 'studentId' => $student->id])
+                    ];
+                })
+                ->toArray();
+
+            return view('admin.exam-screenshots-list', compact('exam', 'students'));
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Unable to load exam screenshots: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show all submitted exams with marks and approval status
+     */
+    public function submittedExams()
+    {
+        $user = session('user'); // get user from session
+
+        if (!$user) {
+            // Redirect to login if not found in session
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+
+        if ($user->email !== 'admin@email.com') {
+            return redirect('/dashboard')->with('error', 'Access denied. Admin only.');
+        }
+
+        try {
+            // Get all exams for filter dropdown
+            $exams = Exam::select('id', 'name')->orderBy('name')->get();
+
+            // Get all submitted exams with student information and marks
+            $submissions = DB::table('student_answers')
+                ->join('students', 'student_answers.student_id', '=', 'students.id')
+                ->join('questions', 'student_answers.question_id', '=', 'questions.id')
+                ->join('exams', 'student_answers.exam_id', '=', 'exams.id')
+                ->select(
+                    'student_answers.exam_id',
+                    'student_answers.student_id',
+                    'students.candidate_name as student_name',
+                    'students.candidate_email as student_email',
+                    'students.started_at',
+                    'exams.name as exam_name',
+                    'exams.total_marks',
+                    'exams.duration_minutes as exam_duration_minutes',
+                    DB::raw('MAX(student_answers.submitted_at) as submitted_at'),
+                    DB::raw('COUNT(DISTINCT student_answers.question_id) as total_questions'),
+                    DB::raw('COUNT(DISTINCT student_answers.question_id) as attempted'),
+                    DB::raw('SUM(CASE WHEN student_answers.status = "approved" THEN student_answers.awarded_marks ELSE 0 END) as total_awarded_marks'),
+                    DB::raw('COUNT(CASE WHEN student_answers.status = "pending" THEN 1 END) as pending_count'),
+                    DB::raw('SUM(CASE WHEN questions.type IN ("mcq_single", "mcq_multiple", "mcq") AND student_answers.status = "approved" THEN student_answers.awarded_marks ELSE 0 END) as mcq_marks'),
+                    DB::raw('SUM(CASE WHEN questions.type IN ("mcq_single", "mcq_multiple", "mcq") THEN questions.marks ELSE 0 END) as total_mcq_marks')
+                )
+                ->groupBy('student_answers.exam_id', 'student_answers.student_id', 'students.candidate_name', 'students.candidate_email', 'students.started_at', 'exams.name', 'exams.total_marks', 'exams.duration_minutes')
+                ->get()
+                ->map(function ($submission) {
+                    $submission->fully_approved = $submission->pending_count == 0;
+                    $submission->needs_review = $submission->pending_count > 0;
+                    return $submission;
+                });
+
+            // Get pending answers for each student
+            $pendingAnswers = DB::table('student_answers')
+                ->join('students', 'student_answers.student_id', '=', 'students.id')
+                ->join('questions', 'student_answers.question_id', '=', 'questions.id')
+                ->join('exams', 'student_answers.exam_id', '=', 'exams.id')
+                ->where('student_answers.status', 'pending')
+                ->where('questions.type', 'descriptive')
+                ->select(
+                    'student_answers.id',
+                    'student_answers.exam_id',
+                    'student_answers.student_id',
+                    'student_answers.answer_text',
+                    'student_answers.awarded_marks',
+                    'students.candidate_name',
+                    'students.candidate_email',
+                    'questions.text as question_text',
+                    'questions.marks as max_marks',
+                    'exams.name as exam_name'
+                )
+                ->get()
+                ->groupBy(['exam_id', 'student_id']);
+
+            return view('admin.submitted-exams', compact('submissions', 'exams', 'pendingAnswers'));
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Unable to load submitted exams: ' . $e->getMessage());
+        }
+    }
 }
-
-
