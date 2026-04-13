@@ -20,6 +20,7 @@
             margin: 0;
         }
         input[type=number] {
+            appearance: textfield; /* Standard */
             -moz-appearance: textfield; /* Firefox */
         }
     </style>
@@ -37,7 +38,7 @@
                 </svg>
             </div>
             
-            <h1 class="text-3xl font-extrabold text-gray-800 mb-2">Verification Code</h1>
+            <h1 class="text-2xl md:text-3xl font-extrabold text-gray-800 mb-2">Verification Code</h1>
             <p class="text-gray-500 mb-8 text-sm">Please enter the 6-digit code sent to your email/phone.</p>
         </div>
 
@@ -53,7 +54,7 @@
             </div>
         @endif
         
-        <form id="otpForm" method="POST" action="{{ route('verify-otp') }}">
+        <form id="otpForm" method="POST" action="/verify-otp">
             @csrf
             
             <!-- Hidden field to hold the combined 6-digit OTP value for submission -->
@@ -62,27 +63,27 @@
             <!-- OTP Input Fields Container - Now supporting 6 digits -->
             <div class="flex justify-center space-x-2 sm:space-x-2 mb-8">
                 <!-- Digit 1 -->
-                <input type="number" id="otp-1" data-index="0" maxlength="1" required 
+                <input type="number" id="otp-1" data-index="0" maxlength="1" required autocomplete="one-time-code"
                        class="otp-input w-10 h-12 sm:w-11 sm:h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition duration-150 p-1"
                        pattern="\d" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
                 <!-- Digit 2 -->
-                <input type="number" id="otp-2" data-index="1" maxlength="1" required 
+                <input type="number" id="otp-2" data-index="1" maxlength="1" required autocomplete="one-time-code"
                        class="otp-input w-10 h-12 sm:w-11 sm:h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition duration-150 p-1"
                        pattern="\d" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
                 <!-- Digit 3 -->
-                <input type="number" id="otp-3" data-index="2" maxlength="1" required 
+                <input type="number" id="otp-3" data-index="2" maxlength="1" required autocomplete="one-time-code"
                        class="otp-input w-10 h-12 sm:w-11 sm:h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition duration-150 p-1"
                        pattern="\d" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
                 <!-- Digit 4 -->
-                <input type="number" id="otp-4" data-index="3" maxlength="1" required 
+                <input type="number" id="otp-4" data-index="3" maxlength="1" required autocomplete="one-time-code"
                        class="otp-input w-10 h-12 sm:w-11 sm:h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition duration-150 p-1"
                        pattern="\d" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
                 <!-- Digit 5 -->
-                <input type="number" id="otp-5" data-index="4" maxlength="1" required 
+                <input type="number" id="otp-5" data-index="4" maxlength="1" required autocomplete="one-time-code"
                        class="otp-input w-10 h-12 sm:w-11 sm:h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition duration-150 p-1"
                        pattern="\d" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
                 <!-- Digit 6 -->
-                <input type="number" id="otp-6" data-index="5" maxlength="1" required 
+                <input type="number" id="otp-6" data-index="5" maxlength="1" required autocomplete="one-time-code"
                        class="otp-input w-10 h-12 sm:w-11 sm:h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition duration-150 p-1"
                        pattern="\d" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
             </div>
@@ -95,16 +96,7 @@
                 Verify Code
             </button>
         </form>
-
-        <!-- Resend OTP Link -->
-        <div class="mt-6 text-center text-sm">
-            <p class="text-gray-500">
-                Didn't receive the code? 
-                <a href="#" class="text-purple-600 hover:text-purple-800 font-semibold transition">
-                    Resend OTP
-                </a>
-            </p>
-        </div>
+        
     </div>
     
     <script>

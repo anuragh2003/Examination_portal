@@ -51,10 +51,11 @@ class ExamController extends Controller
             'name' => 'required|string|max:255',
             'total_marks' => 'required|integer|min:1',
             'duration_minutes' => 'required|integer|min:1',
-            'status' => 'required|in:draft,active,archived'
+            'status' => 'required|in:draft,active,archived',
+            'role' => 'required|string|max:255',
         ]);
 
-        Exam::create($request->all());
+        Exam::create($request->only(['name', 'total_marks', 'duration_minutes', 'status', 'role']));
 
         return redirect()->route('dashboard')->with('success', 'Exam created successfully!');
     }
@@ -73,15 +74,15 @@ public function update(Request $request, $uuid)
         'name' => 'required|string|max:255',
         'total_marks' => 'required|integer|min:1',
         'duration_minutes' => 'required|integer|min:1',
-        'status' => 'required|in:draft,active,archived'
+        'status' => 'required|in:draft,active,archived',
+        'role' => 'required|string|max:255',
     ]);
 
     $exam = Exam::where('uuid', $uuid)->firstOrFail();
-    $exam->update($request->all());
+    $exam->update($request->only(['name', 'total_marks', 'duration_minutes', 'status', 'role']));
 
     return redirect()->route('dashboard')->with('success', 'Exam updated successfully!');
 }
-
 
     // Show exam detail (page to import CSV)
     public function show($uuid)
@@ -713,7 +714,7 @@ public function update(Request $request, $uuid)
     /**
      * Show all submitted exams with marks and approval status
      */
-    public function submittedExams()
+    public function submittedExams(Request $request)
     {
         $user = session('user'); // get user from session
 
@@ -730,8 +731,19 @@ public function update(Request $request, $uuid)
             // Get all exams for filter dropdown
             $exams = Exam::select('id', 'name')->orderBy('name')->get();
 
-            // Get all submitted exams with student information and marks
-            $submissions = DB::table('student_answers')
+            // Filter inputs
+            $examFilter = $request->input('examFilter');
+            $studentFilter = $request->input('studentFilter');
+            $statusFilter = $request->input('statusFilter');
+            $pendingFilter = $request->input('pendingFilter');
+            $minMarks = $request->input('minMarksFilter');
+            $maxMarks = $request->input('maxMarksFilter');
+            $timeSort = $request->input('timeSortFilter');
+            $fromDate = $request->input('fromDateFilter');
+            $toDate = $request->input('toDateFilter');
+
+            // Build the base query for all submitted exams with student information and marks
+            $baseQuery = DB::table('student_answers')
                 ->join('students', 'student_answers.student_id', '=', 'students.id')
                 ->join('questions', 'student_answers.question_id', '=', 'questions.id')
                 ->join('exams', 'student_answers.exam_id', '=', 'exams.id')
@@ -752,13 +764,79 @@ public function update(Request $request, $uuid)
                     DB::raw('SUM(CASE WHEN questions.type IN ("mcq_single", "mcq_multiple", "mcq") AND student_answers.status = "approved" THEN student_answers.awarded_marks ELSE 0 END) as mcq_marks'),
                     DB::raw('SUM(CASE WHEN questions.type IN ("mcq_single", "mcq_multiple", "mcq") THEN questions.marks ELSE 0 END) as total_mcq_marks')
                 )
-                ->groupBy('student_answers.exam_id', 'student_answers.student_id', 'students.candidate_name', 'students.candidate_email', 'students.started_at', 'exams.name', 'exams.total_marks', 'exams.duration_minutes')
+                ->groupBy('student_answers.exam_id', 'student_answers.student_id', 'students.candidate_name', 'students.candidate_email', 'students.started_at', 'exams.name', 'exams.total_marks', 'exams.duration_minutes');
+
+            if ($examFilter) {
+                $baseQuery->where('student_answers.exam_id', $examFilter);
+            }
+
+            if ($studentFilter) {
+                $studentSearch = '%' . strtolower($studentFilter) . '%';
+                $baseQuery->where(function ($query) use ($studentSearch) {
+                    $query->whereRaw('LOWER(students.candidate_name) LIKE ?', [$studentSearch])
+                          ->orWhereRaw('LOWER(students.candidate_email) LIKE ?', [$studentSearch]);
+                });
+            }
+
+            if ($statusFilter === 'pending') {
+                $baseQuery->havingRaw('COUNT(CASE WHEN student_answers.status = "pending" THEN 1 END) > 0');
+            } elseif ($statusFilter === 'approved') {
+                $baseQuery->havingRaw('COUNT(CASE WHEN student_answers.status = "pending" THEN 1 END) = 0');
+            } elseif ($statusFilter === 'submitted') {
+                $baseQuery->havingRaw('COUNT(CASE WHEN student_answers.status = "pending" THEN 1 END) = 0');
+            }
+
+            if ($pendingFilter === 'has-pending') {
+                $baseQuery->havingRaw('COUNT(CASE WHEN student_answers.status = "pending" THEN 1 END) > 0');
+            } elseif ($pendingFilter === 'no-pending') {
+                $baseQuery->havingRaw('COUNT(CASE WHEN student_answers.status = "pending" THEN 1 END) = 0');
+            }
+
+            if ($minMarks !== null && is_numeric($minMarks)) {
+                $baseQuery->havingRaw('SUM(CASE WHEN student_answers.status = "approved" THEN student_answers.awarded_marks ELSE 0 END) >= ?', [(float) $minMarks]);
+            }
+            if ($maxMarks !== null && is_numeric($maxMarks)) {
+                $baseQuery->havingRaw('SUM(CASE WHEN student_answers.status = "approved" THEN student_answers.awarded_marks ELSE 0 END) <= ?', [(float) $maxMarks]);
+            }
+
+            if ($fromDate) {
+                $baseQuery->havingRaw('DATE(MAX(student_answers.submitted_at)) >= ?', [$fromDate]);
+            }
+            if ($toDate) {
+                $baseQuery->havingRaw('DATE(MAX(student_answers.submitted_at)) <= ?', [$toDate]);
+            }
+
+            if ($timeSort === 'least-time') {
+                $baseQuery->orderByRaw('TIMESTAMPDIFF(SECOND, students.started_at, MAX(student_answers.submitted_at)) asc');
+            } elseif ($timeSort === 'max-time') {
+                $baseQuery->orderByRaw('TIMESTAMPDIFF(SECOND, students.started_at, MAX(student_answers.submitted_at)) desc');
+            } else {
+                $baseQuery->orderBy('students.candidate_name');
+            }
+
+            // Pagination: show 10 submissions per page
+            $submissions = (clone $baseQuery)
+                ->paginate(10)
+                ->withQueryString();
+
+            $submissions->getCollection()->transform(function ($submission) {
+                $submission->fully_approved = $submission->pending_count == 0;
+                $submission->needs_review = $submission->pending_count > 0;
+                return $submission;
+            });
+
+            // Calculate dashboard totals from the full submission set
+            $allSubmissions = (clone $baseQuery)
                 ->get()
                 ->map(function ($submission) {
                     $submission->fully_approved = $submission->pending_count == 0;
                     $submission->needs_review = $submission->pending_count > 0;
                     return $submission;
                 });
+
+            $totalSubmissions = $allSubmissions->count();
+            $pendingReviewCount = $allSubmissions->where('needs_review', true)->count();
+            $fullyApprovedCount = $allSubmissions->where('fully_approved', true)->count();
 
             // Get pending answers for each student
             $pendingAnswers = DB::table('student_answers')
@@ -782,7 +860,14 @@ public function update(Request $request, $uuid)
                 ->get()
                 ->groupBy(['exam_id', 'student_id']);
 
-            return view('admin.submitted-exams', compact('submissions', 'exams', 'pendingAnswers'));
+            return view('admin.submitted-exams', compact(
+                'submissions',
+                'exams',
+                'pendingAnswers',
+                'totalSubmissions',
+                'pendingReviewCount',
+                'fullyApprovedCount'
+            ));
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Unable to load submitted exams: ' . $e->getMessage());
         }

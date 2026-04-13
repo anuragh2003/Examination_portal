@@ -9,16 +9,16 @@
 <body class="min-h-screen flex flex-col bg-gray-50">
 
     <!-- Navbar -->
-    <header class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shadow">
-        <h1 class="text-xl font-bold">Examination Portal</h1>
-        <div class="flex items-center gap-4">
-            <span>Welcome, Admin</span>
+    <header class="bg-blue-600 text-white px-4 md:px-6 py-4 flex justify-between items-center shadow">
+        <h1 class="text-lg md:text-xl font-bold">Examination Portal</h1>
+        <div class="flex items-center gap-2 md:gap-4">
+            <span class="hidden sm:block">Welcome, Admin</span>
 
             <!-- Logout form (POST) -->
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit"
-                        class="bg-red-600 px-4 py-2 rounded hover:bg-red-700">
+                        class="bg-red-600 px-3 py-2 md:px-4 md:py-2 rounded hover:bg-red-700 text-sm md:text-base">
                     Logout
                 </button>
             </form>

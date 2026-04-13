@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Exam Submitted</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -76,6 +79,48 @@
         </a>
     </div>
 </div>
+
+<script>
+(function () {
+    // 🔒 Push multiple states to trap back navigation
+    function preventBack() {
+        window.history.pushState(null, "", window.location.href);
+    }
+
+    // Push state multiple times (stronger effect)
+    for (let i = 0; i < 50; i++) {
+        preventBack();
+    }
+
+    // 🚫 Handle back button
+    window.addEventListener("popstate", function () {
+        preventBack();
+        window.location.replace(window.location.href);
+    });
+
+    // 🚫 Prevent caching (important for exams)
+    window.addEventListener("pageshow", function (event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
+
+    // 🚫 Disable keyboard back shortcuts (extra layer)
+    document.addEventListener("keydown", function (e) {
+        // ALT + LEFT ARROW
+        if (e.altKey && e.key === "ArrowLeft") {
+            e.preventDefault();
+        }
+
+        // Backspace (outside input fields)
+        if (e.key === "Backspace" &&
+            !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+        }
+    });
+
+})();
+</script>
 
 </body>
 </html>

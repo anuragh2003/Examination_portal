@@ -15,14 +15,27 @@ class Student extends Model
         'candidate_email',
         'candidate_contact',
         'candidate_city',
+        'role',
         'otp',
         'otp_expires_at',
         'registered_at',
         'started_at',
+        'active_session',
+        'active_session_started_at',
+        'active_session_expires_at',
+        'session_token',
+        'submitted_at',
+        'attempt_completed',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
+        'active_session_started_at' => 'datetime',
+        'active_session_expires_at' => 'datetime',
+        'otp_expires_at' => 'datetime',
+        'submitted_at' => 'datetime',
+        'active_session' => 'boolean',
+        'attempt_completed' => 'boolean',
     ];
 
     // Relationship: Student belongs to an Exam

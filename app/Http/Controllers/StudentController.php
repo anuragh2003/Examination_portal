@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use App\Mail\WelcomeEmail;
 use App\Models\student_answer;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +26,7 @@ public function examAccess(string $uuid)
     try {
         $exam = Exam::where('uuid', $uuid)->first();
         $instance = null;
-        
+
         if (!$exam) {
             $instance = ExamInstance::where('uuid', $uuid)->first();
             if ($instance) {
@@ -38,42 +39,35 @@ public function examAccess(string $uuid)
                 ]);
             }
         }
-        
-        // Check if exam is active
+
         if ($exam->status !== 'active') {
             return view('student.exam-not-available', [
                 'message' => 'This exam is not currently available.',
                 'exam' => $exam
             ]);
         }
-        
-        if (session()->has('student_email')) {
-            $student = Student::where('email', session('student_email'))
-                        ->where('exam_id', $exam->id)
-                        ->first();
 
-            if ($student) {
-                // Check if registered within 1 hour
-                if ($student->registered_at && now()->diffInHours($student->registered_at) >= 1) {
-                    // Delete old student record
-                    $student->delete();
-                    session()->forget(['student_email']);
-                    return redirect()->route('student.exam.access', $uuid)
-                        ->with('error', 'Your registration has expired. Please register again.');
-                }
-                // Student already registered → redirect to take exam
-                return redirect()->route('student.exam.take', $exam->uuid);
+        $studentSession = session("student_exam_{$uuid}");
+        $studentId = $studentSession['student_id'] ?? null;
+
+        if ($studentId) {
+            $hasSubmitted = DB::table('student_answers')
+                ->where('exam_id', $exam->id)
+                ->where('student_id', $studentId)
+                ->whereNotNull('submitted_at')
+                ->exists();
+
+            if ($hasSubmitted) {
+                return redirect()->route('student.exam-submitted', $uuid)
+                    ->with('info', 'You have already submitted this exam.');
             }
         }
-        
-        // Check if student already has a session for this exam
-        $studentId = session("student_exam_{$uuid}");
-        if ($studentId) {
+
+        if ($studentSession) {
             return redirect()->route('student.exam.take', $uuid);
         }
-        
+
         return view('student.exam-access', compact('exam'));
-        
     } catch (\Exception $e) {
         return view('student.exam-not-available', [
             'message' => 'Exam not found or has been removed.',
@@ -81,145 +75,158 @@ public function examAccess(string $uuid)
         ]);
     }
 }
-    
-    
-     public function register(Request $request)
-    {
-        // ✅ Validate student input with strict format rules
-        $request->validate([
-            'exam_id' => 'required|exists:exams,id',
-            'candidate_name' => 'required|string|max:255|regex:/^[a-zA-Z\s]+$/',
-            'candidate_email' => 'required|email|max:255',
-            'candidate_contact' => 'nullable|numeric|digits:10',
-            'candidate_city' => 'nullable|string|max:255|regex:/^[a-zA-Z\s]+$/',
-        ], [
-            'candidate_name.regex' => 'Full name can only contain letters and spaces.',
-            'candidate_contact.numeric' => 'Contact number must contain only digits.',
-            'candidate_contact.digits' => 'Contact number must be exactly 10 digits.',
-            'candidate_city.regex' => 'City can only contain letters and spaces.',
-            'candidate_email.email' => 'Please enter a valid email address.',
-        ]);
 
-        // ✅ Generate OTP
-        $otp = rand(100000, 999999);
-        $existing = Student::where('exam_id', $request->exam_id)
-                   ->where('candidate_email', $request->candidate_email)
-                   ->first();
-if ($existing) {
-    $existing->delete();
+public function register(Request $request)
+{
+    $request->validate([
+        'exam_id' => 'required|exists:exams,id',
+        'candidate_email' => 'required|email|max:255',
+    ], [
+        'candidate_email.email' => 'Please enter a valid email address.',
+    ]);
+
+    $exam = Exam::findOrFail($request->exam_id);
+
+    $student = Student::where('candidate_email', strtolower($request->candidate_email))
+        ->where('role', $exam->role)
+        ->first();
+
+    if (!$student) {
+        return redirect()->route('student.exam.access', $exam->uuid)
+            ->with('error', 'This email is not registered for the role required by this exam.');
+    }
+
+    $hasSubmittedThisExam = DB::table('student_answers')
+        ->where('exam_id', $exam->id)
+        ->where('student_id', $student->id)
+        ->whereNotNull('submitted_at')
+        ->exists();
+
+    if ($hasSubmittedThisExam) {
+        return redirect()->route('student.exam.access', $exam->uuid)
+            ->with('error', 'You have already completed this exam.');
+    }
+
+    if ($student->active_session && $student->active_session_expires_at && now()->lessThan($student->active_session_expires_at)) {
+        return redirect()->route('student.exam.access', $exam->uuid)
+            ->with('error', 'This email is already writing the exam. Please wait until the current session ends.');
+    }
+
+    $otp = rand(100000, 999999);
+
+    $student->update([
+        'exam_id' => $student->exam_id ?? $exam->id,
+        'otp' => $otp,
+        'otp_expires_at' => now()->addMinutes(30),
+        'registered_at' => now(),
+    ]);
+
+    session(['student_email' => $student->candidate_email]);
+    Session::put('otp', $otp);
+    Session::put('student_id', $student->id);
+    Session::put('student_exam_uuid', $exam->uuid);
+    Session::put('student_exam_id', $exam->id);
+
+    if (StudentQuestionOrder::where('student_id', $student->id)->count() === 0) {
+        $selector = new \App\Services\QuestionSelector();
+        $selectionResult = $selector->selectQuestions($exam->total_marks, [], $exam->id);
+
+        if (!empty($selectionResult['success']) && $selectionResult['success']) {
+            $selectedQuestionIds = array_column($selectionResult['questions'], 'id');
+            foreach ($selectedQuestionIds as $order => $questionId) {
+                StudentQuestionOrder::create([
+                    'student_id' => $student->id,
+                    'question_id' => $questionId,
+                    'order_position' => $order + 1,
+                ]);
+            }
+        }
+    }
+
+    $studentDetails = [
+        'name' => $student->candidate_name,
+        'email' => $student->candidate_email,
+        'city' => $student->candidate_city,
+        'contact' => $student->candidate_contact,
+        'otp' => $otp,
+    ];
+
+    Mail::to($student->candidate_email)->send(new WelcomeEmail($studentDetails));
+
+    return redirect()->route('verify.form')
+        ->with('success', 'OTP has been sent to your registered email.');
 }
 
-        // ✅ Create student record with OTP fields and registered timestamp
-        $student = Student::create([
-            'exam_id' => $request->exam_id,
-            'candidate_name' => $request->candidate_name,
-            'candidate_email' => $request->candidate_email,
-            'candidate_contact' => $request->candidate_contact,
-            'candidate_city' => $request->candidate_city,
-            'otp' => $otp,
-            'otp_expires_at' => now()->addMinutes(30),
-            'registered_at' => now(), // Add registration time
-        ]);
+public function verifyOtp(Request $request)
+{
+    $request->validate([
+        'otp' => 'required|digits:6',
+    ]);
 
-        // ✅ Store student ID in session for OTP verification
-        session(['student_email' => $student->email]);
-        Session::put('otp', $otp);
-        Session::put('student_id', $student->id);
+    $storedOtp = Session::get('otp');
+    $studentId = Session::get('student_id');
+    $examUuid = Session::get('student_exam_uuid');
+    $examId = Session::get('student_exam_id');
 
-        // ✅ Get exam for shuffling logic
-        $exam = Exam::find($request->exam_id);
-
-        // ✅ Shuffle questions uniquely for this student and store in student_question_orders
-        if ($exam) {
-            $selector = new \App\Services\QuestionSelector();
-            $selectionResult = $selector->selectQuestions($exam->total_marks, [], $exam->id);
-            
-            if (!empty($selectionResult['success']) && $selectionResult['success']) {
-                $selectedQuestionIds = array_column($selectionResult['questions'], 'id');
-
-                // Clear any existing orders (safety) and create new order entries
-                StudentQuestionOrder::where('student_id', $student->id)->delete();
-
-                foreach ($selectedQuestionIds as $order => $questionId) {
-                    StudentQuestionOrder::create([
-                        'student_id' => $student->id,
-                        'question_id' => $questionId,
-                        'order_position' => $order + 1,
-                    ]);
-                }
-            }
-        }
-
-        // ✅ Get exam UUID for session key
-        $uuid = $exam ? $exam->uuid : null;
-
-        // ✅ Create student session for exam
-        $studentSession = [
-            'name' => $student->candidate_name,
-            'email' => $student->candidate_email,
-            'student_id' => $student->id,
-            'exam_uuid' => $uuid,
-            'start_time' => now()->toDateTimeString(),
-            'answers' => [],
-            'current_question' => 1
-        ];
-
-        if ($uuid) {
-            session(["student_exam_{$uuid}" => $studentSession]);
-        }
-
-        // ✅ Prepare email details
-        $studentDetails = [
-            'name' => $student->candidate_name,
-            'email' => $student->candidate_email,
-            'city' => $student->candidate_city,
-            'contact' => $student->candidate_contact,
-            'otp' => $otp,
-        ];
-
-        // ✅ Send OTP mail
-        Mail::to($student->candidate_email)->send(new WelcomeEmail($studentDetails));
-
-        // ✅ Redirect to OTP verification page
-        return redirect()->route('verify-otp')
-                         ->with('success', 'OTP has been sent to your email!');
+    if (!$studentId || !$examUuid || !$examId) {
+        return redirect()->route('login')->with('error', 'Session expired. Please login again.');
     }
 
-    public function verifyOtp(Request $request)
-    {
-        $request->validate([
-            'otp' => 'required|numeric',
-        ]);
-
-        $storedOtp = Session::get('otp');
-
-        if ($request->otp == $storedOtp) {
-            $studentId = Session::get('student_id');
-            $student = Student::find($studentId);
-
-            if ($student instanceof \Illuminate\Contracts\Auth\Authenticatable) {
-            // Clear OTP and student_id, but keep exam_id
-            Session::forget(['otp', 'student_id']);
-                return back()->with('error', 'Student not found or invalid.');
-            }
-
-            // Clear OTP and user_id, but keep exam_id
-            Session::forget(['otp', 'student_id']);
-
-            // Get exam UUID from student record
-            $exam = Exam::find($student->exam_id);
-            if (!$exam) {
-                return back()->with('error', 'Exam not found.');
-            }
-            return redirect()->route('student.exam.take', $exam->uuid)->with('success', 'Verified! Start your exam.');
-        } else {
-            return back()->with('error', 'Invalid OTP. Try again.');
-        }
+    if ((int)$request->otp !== $storedOtp) {
+        return back()->with('error', 'Invalid OTP. Try again.');
     }
-     public function showVerifyForm()
-    {
-        return view('verify-otp');  // We'll create this view
+
+    $student = Student::find($studentId);
+    if (!$student) {
+        return back()->with('error', 'Student not found. Please login again.');
     }
+
+    if ($student->otp_expires_at && now()->greaterThan($student->otp_expires_at)) {
+        return back()->with('error', 'OTP has expired. Please request a new one.');
+    }
+
+    if ($student->attempt_completed || $student->submitted_at) {
+        return redirect()->route('student.exam.access', $examUuid)
+            ->with('error', 'You have already completed this exam.');
+    }
+
+    $sessionToken = Str::random(40);
+    $expiresAt = now()->addMinutes(Exam::findOrFail($examId)->duration_minutes + 5);
+
+    $student->update([
+        'active_session' => true,
+        'active_session_started_at' => now(),
+        'active_session_expires_at' => $expiresAt,
+        'session_token' => $sessionToken,
+        'otp' => null,
+        'otp_expires_at' => null,
+        'started_at' => $student->started_at ?? now(),
+    ]);
+
+    $studentSession = [
+        'name' => $student->candidate_name,
+        'email' => $student->candidate_email,
+        'student_id' => $student->id,
+        'exam_uuid' => $examUuid,
+        'exam_id' => $examId,
+        'start_time' => now()->toDateTimeString(),
+        'session_token' => $sessionToken,
+        'answers' => [],
+        'current_question' => 1,
+    ];
+
+    session(["student_exam_{$examUuid}" => $studentSession]);
+    session(['student_session_token' => $sessionToken]);
+    Session::forget(['otp']);
+
+    return redirect()->route('student.exam.take', $examUuid)
+        ->with('success', 'OTP verified. You may now start the exam.');
+}
+
+public function showVerifyForm()
+{
+    return view('verify-otp');
+}
 public function takeExam(string $uuid)
 {
     try {
@@ -247,23 +254,41 @@ public function takeExam(string $uuid)
         // Ensure student_id is in session for getExamQuestions
         Session::put('student_id', $studentSession['student_id']);
 
-        // Set started_at timestamp if not already set
         $student = Student::find($studentSession['student_id']);
+        if (!$student) {
+            return redirect()->route('student.exam.access', $uuid)
+                ->with('error', 'Student session invalid. Please login again.');
+        }
+
+        if (empty($studentSession['session_token']) || $student->session_token !== $studentSession['session_token']) {
+            return redirect()->route('student.exam.access', $uuid)
+                ->with('error', 'Your exam session is no longer valid. Please login again.');
+        }
+
+        $hasSubmittedThisExam = DB::table('student_answers')
+            ->where('exam_id', $exam->id)
+            ->where('student_id', $studentSession['student_id'])
+            ->whereNotNull('submitted_at')
+            ->exists();
+
+        if ($hasSubmittedThisExam) {
+            return redirect()->route('student.exam-submitted', $uuid)
+                ->with('info', 'You have already submitted this exam.');
+        }
+
+        if ($student->active_session && $student->active_session_expires_at && now()->greaterThan($student->active_session_expires_at)) {
+            $student->update([
+                'active_session' => false,
+                'session_token' => null,
+                'active_session_started_at' => null,
+                'active_session_expires_at' => null,
+            ]);
+        }
+
         if ($student && !$student->started_at) {
             $student->update(['started_at' => now()]);
         }
 
-        // Check if exam has already been submitted by this student
-        $existingSubmission = DB::table('student_answers')
-            ->where('exam_id', $exam->id)
-            ->where('student_id', $studentSession['student_id'])
-            ->exists();
-
-        if ($existingSubmission) {
-            return redirect()->route('student.exam-submitted', $uuid)
-                ->with('info', 'You have already submitted this exam.');
-        }
-        
         // TEMPORARY: Disable time check for debugging
         $startTime = \Carbon\Carbon::parse($studentSession['start_time']);
         $currentTime = now();
@@ -476,8 +501,22 @@ public function submitExam(Request $request, $uuid)
     // Store student_id in session for the submitted page
     Session::put('student_id', $studentId);
 
-    // ✅ clear session but keep student record (and their answers) for review/audit
-    Session::forget(["student_exam_{$uuid}", 'student_email']);
+    $student = Student::find($studentId);
+    if ($student) {
+        $student->update([
+            'active_session' => false,
+            'session_token' => null,
+            'active_session_started_at' => null,
+            'active_session_expires_at' => null,
+            'submitted_at' => now(),
+            'attempt_completed' => true,
+            'otp' => null,
+            'otp_expires_at' => null,
+        ]);
+    }
+
+    // ✅ clear exam-session state but keep student_id for submitted page review
+    Session::forget(["student_exam_{$uuid}", 'student_email', 'student_session_token', 'student_exam_uuid', 'student_exam_id']);
 
     // Check if this is an AJAX request
     if ($request->ajax() || $request->wantsJson()) {
@@ -538,8 +577,41 @@ public function examSubmitted($uuid)
     ]);
 }
 
+public function checkSubmission($uuid)
+{
+    try {
+        Log::info("CheckSubmission called for UUID: {$uuid}");
+        
+        $exam = Exam::where('uuid', $uuid)->first();
+        if (!$exam) {
+            Log::info("Exam not found for UUID: {$uuid}");
+            return response()->json(['submitted' => false, 'error' => 'Exam not found']);
+        }
 
+        $studentSession = session("student_exam_{$uuid}");
+        $studentId = $studentSession['student_id'] ?? session('student_id');
+        
+        Log::info("Student session for exam {$uuid}:", ['session' => $studentSession, 'student_id' => $studentId]);
 
+        if (!$studentId) {
+            Log::info("No student ID in session for exam {$uuid}");
+            return response()->json(['submitted' => false, 'error' => 'No active session']);
+        }
+
+        $hasSubmitted = DB::table('student_answers')
+            ->where('exam_id', $exam->id)
+            ->where('student_id', $studentId)
+            ->whereNotNull('submitted_at')
+            ->exists();
+        
+        Log::info("Submission check result for exam {$exam->id}, student {$studentId}: " . ($hasSubmitted ? 'SUBMITTED' : 'NOT SUBMITTED'));
+
+        return response()->json(['submitted' => $hasSubmitted]);
+    } catch (\Exception $e) {
+        Log::error("Error in checkSubmission: " . $e->getMessage());
+        return response()->json(['submitted' => false, 'error' => 'Server error']);
+    }
+}
 
 public function uploadProctorScreenshots(Request $request)
 {

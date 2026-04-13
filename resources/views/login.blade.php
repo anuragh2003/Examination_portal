@@ -30,7 +30,7 @@
                 </svg>
             </div>
             
-            <h1 class="text-3xl font-extrabold text-gray-800 mb-1">Admin Access</h1>
+            <h1 class="text-2xl md:text-3xl font-extrabold text-gray-800 mb-1">Admin Access</h1>
             <p class="text-gray-500 text-sm">Secure Examination Portal</p>
         </div>
 

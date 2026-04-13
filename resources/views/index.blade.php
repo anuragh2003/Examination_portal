@@ -1,17 +1,21 @@
 @include('header')
 
-<main class="flex-grow p-8">
+<main class="flex-grow p-4 md:p-8">
   <!-- Enhanced Header Section -->
   <div class="mb-8">
     <div class="flex justify-between items-start mb-6">
       <div>
-        <h2 class="text-3xl font-bold mb-2 text-gray-800">Admin Dashboard</h2>
+        <h2 class="text-2xl md:text-3xl font-bold mb-2 text-gray-800">Admin Dashboard</h2>
         <p class="text-gray-600">Complete examination management system with intelligent question selection</p>
       </div>
       <div class="flex gap-3">
         <a href="{{ route('submitted.exams') }}" 
            class="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-medium shadow-md">
           📊 Submitted Exams
+        </a>
+        <a href="{{ route('students.list') }}" 
+           class="bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition font-medium shadow-md">
+          👥 Students
         </a>
         <a href="#" id="manage-questions-btn" 
            class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition font-medium shadow-md">
@@ -141,20 +145,20 @@
         </a>
 
         <!-- Actions -->
-        <div class="flex space-x-2 mt-auto flex-wrap gap-1">
+        <div class="grid grid-cols-2 gap-2 mt-4">
           <a href="{{ route('exams.show', $exam->uuid) }}" 
-            class="bg-blue-500 text-white px-2 py-1 text-xs rounded hover:bg-blue-600 transition whitespace-nowrap">
+            class="inline-flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 transition shadow-sm">
             👁️ View
           </a>
 
           <a href="{{ route('exam.screenshots', $exam->id) }}" 
-            class="bg-indigo-600 text-white px-2 py-1 text-xs rounded hover:bg-indigo-700 transition whitespace-nowrap">
+            class="inline-flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-sm">
             📸 Screenshots
           </a>
 
           <a href="{{ route('exams.edit', $exam->uuid) }}" 
-            class="bg-yellow-500 text-white px-2 py-1 text-xs rounded hover:bg-yellow-600 transition whitespace-nowrap">
-            Edit
+            class="inline-flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-900 bg-amber-300 hover:bg-amber-400 transition shadow-sm">
+            ✏️ Edit
           </a>
 
           <form action="{{ route('exams.destroy', $exam->uuid) }}" method="POST" 
@@ -162,8 +166,8 @@
             @csrf
             @method('DELETE')
             <button type="submit" 
-              class="bg-red-600 text-white px-2 py-1 text-xs rounded hover:bg-red-700 transition whitespace-nowrap">
-              Delete
+              class="inline-flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition shadow-sm">
+              🗑️ Delete
             </button>
           </form>
         </div>

@@ -15,6 +15,16 @@
 <body class="min-h-screen p-4 sm:p-8">
 
 <div class="max-w-7xl mx-auto">
+    <!-- Back to Dashboard Button -->
+    <div class="mb-6">
+        <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold shadow-md">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+
     <!-- Header -->
     <div class="mb-8">
         <h1 class="text-4xl font-extrabold text-gray-800 mb-2">📋 Submitted Exams</h1>
@@ -25,15 +35,15 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
             <p class="text-gray-600 text-sm font-semibold">Total Submissions</p>
-            <p class="text-3xl font-bold text-blue-600">{{ $submissions->count() }}</p>
+            <p class="text-3xl font-bold text-blue-600">{{ $totalSubmissions }}</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-500">
             <p class="text-gray-600 text-sm font-semibold">Pending Review</p>
-            <p class="text-3xl font-bold text-yellow-600">{{ $submissions->where('needs_review', true)->count() }}</p>
+            <p class="text-3xl font-bold text-yellow-600">{{ $pendingReviewCount }}</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
             <p class="text-gray-600 text-sm font-semibold">Fully Approved</p>
-            <p class="text-3xl font-bold text-green-600">{{ $submissions->where('fully_approved', true)->count() }}</p>
+            <p class="text-3xl font-bold text-green-600">{{ $fullyApprovedCount }}</p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
             <p class="text-gray-600 text-sm font-semibold">Exams</p>
@@ -41,15 +51,121 @@
         </div>
     </div>
 
-    <!-- Filter by Exam -->
-    <div class="mb-6 p-4 bg-white rounded-lg shadow-md">
-        <label class="block text-sm font-semibold text-gray-700 mb-2">Filter by Exam:</label>
-        <select id="examFilter" class="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">All Exams</option>
-            @foreach($exams as $exam)
-                <option value="{{ $exam->id }}">{{ $exam->name }}</option>
-            @endforeach
-        </select>
+    <!-- Filter Toggle Button -->
+    <div class="mb-6 flex items-center gap-2">
+        <button id="filterToggleBtn" class="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold shadow-md">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+            </svg>
+            🔍 Advanced Filters
+        </button>
+        <span id="activeFilterCount" class="text-gray-600 font-semibold text-sm"></span>
+    </div>
+
+    <!-- Advanced Filters (Hidden by Default) -->
+    <div id="filterPanel" class="mb-6 p-6 bg-white rounded-lg shadow-md hidden">
+        <form id="filterForm" method="GET" action="{{ route('submitted.exams') }}">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800">Filter Submissions</h3>
+                <button type="button" id="filterCloseBtn" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Exam Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Exam:</label>
+                <select id="examFilter" name="examFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Exams</option>
+                    @foreach($exams as $exam)
+                        <option value="{{ $exam->id }}" {{ request('examFilter') == $exam->id ? 'selected' : '' }}>{{ $exam->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- Student Name/Email Search -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Student:</label>
+                <input type="text" name="studentFilter" id="studentFilter" placeholder="Name or Email..." value="{{ request('studentFilter') }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Status Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Status:</label>
+                <select id="statusFilter" name="statusFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Status</option>
+                    <option value="pending" {{ request('statusFilter') == 'pending' ? 'selected' : '' }}>⏳ Pending Review</option>
+                    <option value="approved" {{ request('statusFilter') == 'approved' ? 'selected' : '' }}>✓ Fully Approved</option>
+                    <option value="submitted" {{ request('statusFilter') == 'submitted' ? 'selected' : '' }}>Submitted</option>
+                </select>
+            </div>
+
+            <!-- Pending Answers Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Pending Answers:</label>
+                <select id="pendingFilter" name="pendingFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">All</option>
+                    <option value="has-pending" {{ request('pendingFilter') == 'has-pending' ? 'selected' : '' }}>Has Pending</option>
+                    <option value="no-pending" {{ request('pendingFilter') == 'no-pending' ? 'selected' : '' }}>No Pending</option>
+                </select>
+            </div>
+
+            <!-- Marks Range Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Min Score:</label>
+                <input type="number" name="minMarksFilter" id="minMarksFilter" placeholder="Min marks" min="0" value="{{ request('minMarksFilter') }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Max Marks Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Max Score:</label>
+                <input type="number" name="maxMarksFilter" id="maxMarksFilter" placeholder="Max marks" value="{{ request('maxMarksFilter') }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Time Taken Sort -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Sort by Time Taken:</label>
+                <select id="timeSortFilter" name="timeSortFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">No Sort</option>
+                    <option value="least-time" {{ request('timeSortFilter') == 'least-time' ? 'selected' : '' }}>⏱️ Least Time First</option>
+                    <option value="max-time" {{ request('timeSortFilter') == 'max-time' ? 'selected' : '' }}>⏱️ Max Time First</option>
+                </select>
+            </div>
+
+            <!-- Date Range Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">From Date:</label>
+                <input type="date" name="fromDateFilter" id="fromDateFilter" value="{{ request('fromDateFilter') }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- To Date Filter -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">To Date:</label>
+                <input type="date" name="toDateFilter" id="toDateFilter" value="{{ request('toDateFilter') }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold">
+                ✅ Apply Filters
+            </button>
+            <a href="{{ route('submitted.exams') }}" class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-semibold">
+                🔄 Reset Filters
+            </a>
+            <span class="ml-auto text-gray-600 font-semibold">
+                Showing {{ $submissions->count() }} of {{ $submissions->total() }} submissions
+            </span>
+        </div>
+        </form>
     </div>
 
     <!-- Submissions Table -->
@@ -185,6 +301,9 @@
                     @endforelse
                 </tbody>
             </table>
+        </div>
+        <div class="px-6 py-4 bg-white border-t border-gray-200">
+            {{ $submissions->withQueryString()->links() }}
         </div>
     </div>
 
@@ -406,19 +525,14 @@
         }, 3000);
     }
 
-    // Filter by exam
-    document.getElementById('examFilter').addEventListener('change', (e) => {
-        const examId = e.target.value;
-        const rows = document.querySelectorAll('table tbody tr');
-        
-        rows.forEach(row => {
-            const rowExamId = row.getAttribute('data-exam-id');
-            if (!examId || rowExamId === examId) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
+    // Toggle filter panel visibility
+    document.getElementById('filterToggleBtn').addEventListener('click', () => {
+        const filterPanel = document.getElementById('filterPanel');
+        filterPanel.classList.toggle('hidden');
+    });
+
+    document.getElementById('filterCloseBtn').addEventListener('click', () => {
+        document.getElementById('filterPanel').classList.add('hidden');
     });
 </script>
 

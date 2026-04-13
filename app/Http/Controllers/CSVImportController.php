@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Student;
+use Illuminate\Support\Str;
 use Exception;
 
 class CSVImportController extends Controller
@@ -80,6 +82,261 @@ class CSVImportController extends Controller
             DB::rollBack();
             return redirect()->back()
                 ->withErrors(['csv_file' => 'Import failed: ' . $e->getMessage()]);
+        }
+    }
+
+    public function showStudentImportForm()
+    {
+        return view('admin.student-import');
+    }
+
+    public function importStudents(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'csv_file' => 'required|file|mimes:csv,txt|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        try {
+            $file = $request->file('csv_file');
+            $path = $file->getRealPath();
+            $csvData = array_map('str_getcsv', file($path));
+            $headerRow = array_shift($csvData);
+            $header = array_map(function ($column) {
+                return strtolower(trim($column));
+            }, $headerRow);
+
+            $required = ['name', 'email', 'mobile', 'role'];
+            foreach ($required as $field) {
+                if (!in_array($field, $header, true)) {
+                    throw new Exception("Missing required column: {$field}");
+                }
+            }
+
+            $importStats = [
+                'total_rows' => count($csvData),
+                'imported' => 0,
+                'skipped' => 0,
+                'errors' => []
+            ];
+
+            DB::beginTransaction();
+
+            foreach ($csvData as $rowIndex => $row) {
+                try {
+                    $row = array_map('trim', $row);
+                    $data = array_combine($header, $row);
+
+                    $email = strtolower($data['email'] ?? '');
+                    $name = $data['name'] ?? null;
+                    $mobile = $data['mobile'] ?? null;
+                    $role = $data['role'] ?? null;
+                    $city = $data['city'] ?? null;
+
+                    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                        throw new Exception('Invalid email address.');
+                    }
+                    if (!$name) {
+                        throw new Exception('Name is required.');
+                    }
+                    if (!$mobile || !preg_match('/^[0-9]{10,15}$/', $mobile)) {
+                        throw new Exception('Invalid mobile number.');
+                    }
+                    if (!$role) {
+                        throw new Exception('Role is required.');
+                    }
+
+                    $student = Student::updateOrCreate(
+                        ['candidate_email' => $email, 'role' => $role],
+                        [
+                            'candidate_name' => $name,
+                            'candidate_contact' => $mobile,
+                            'candidate_city' => $city,
+                        ]
+                    );
+
+                    if ($student->wasRecentlyCreated || $student->wasChanged()) {
+                        $importStats['imported']++;
+                    } else {
+                        $importStats['skipped']++;
+                    }
+                } catch (Exception $e) {
+                    $importStats['errors'][] = 'Row ' . ($rowIndex + 2) . ': ' . $e->getMessage();
+                    $importStats['skipped']++;
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->route('students.list')->with([
+                'success' => 'Student import completed successfully!',
+                'import_stats' => $importStats
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return redirect()->route('students.list')
+                ->withErrors(['csv_file' => 'Import failed: ' . $e->getMessage()]);
+        }
+    }
+
+    public function listStudents(Request $request)
+    {
+        $user = session('user'); // get user from session
+
+        if (!$user) {
+            // Redirect to login if not found in session
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+
+        if ($user->email !== 'admin@email.com') {
+            return redirect('/dashboard')->with('error', 'Access denied. Admin only.');
+        }
+
+        try {
+            // Filter inputs
+            $nameFilter = $request->input('nameFilter');
+            $emailFilter = $request->input('emailFilter');
+            $roleFilter = $request->input('roleFilter');
+            $cityFilter = $request->input('cityFilter');
+            $statusFilter = $request->input('statusFilter');
+            $fromDate = $request->input('fromDateFilter');
+            $toDate = $request->input('toDateFilter');
+
+            // Build the base query for all students
+            $baseQuery = Student::query()
+                ->select(
+                    'id',
+                    'candidate_name',
+                    'candidate_email',
+                    'candidate_contact',
+                    'candidate_city',
+                    'role',
+                    'registered_at',
+                    'started_at',
+                    'submitted_at',
+                    'attempt_completed'
+                );
+
+            if ($nameFilter) {
+                $nameSearch = '%' . strtolower($nameFilter) . '%';
+                $baseQuery->whereRaw('LOWER(candidate_name) LIKE ?', [$nameSearch]);
+            }
+
+            if ($emailFilter) {
+                $emailSearch = '%' . strtolower($emailFilter) . '%';
+                $baseQuery->whereRaw('LOWER(candidate_email) LIKE ?', [$emailSearch]);
+            }
+
+            if ($roleFilter) {
+                $baseQuery->where('role', $roleFilter);
+            }
+
+            if ($cityFilter) {
+                $citySearch = '%' . strtolower($cityFilter) . '%';
+                $baseQuery->whereRaw('LOWER(candidate_city) LIKE ?', [$citySearch]);
+            }
+
+            if ($statusFilter === 'completed') {
+                $baseQuery->where('attempt_completed', true);
+            } elseif ($statusFilter === 'in-progress') {
+                $baseQuery->where('attempt_completed', false)->whereNotNull('started_at');
+            } elseif ($statusFilter === 'not-started') {
+                $baseQuery->whereNull('started_at');
+            }
+
+            if ($fromDate) {
+                $baseQuery->whereDate('registered_at', '>=', $fromDate);
+            }
+            if ($toDate) {
+                $baseQuery->whereDate('registered_at', '<=', $toDate);
+            }
+
+            $baseQuery->orderBy('candidate_name');
+
+            // Pagination: show 10 students per page
+            $students = $baseQuery->paginate(10)->withQueryString();
+
+            // Calculate dashboard totals from the full student set
+            $allStudents = $baseQuery->get();
+            $totalStudents = $allStudents->count();
+            $completedStudents = $allStudents->where('attempt_completed', true)->count();
+            $inProgressStudents = $allStudents->where('attempt_completed', false)->whereNotNull('started_at')->count();
+            $notStartedStudents = $allStudents->whereNull('started_at')->count();
+
+            // Get unique roles and cities for filter dropdowns
+            $roles = Student::distinct()->pluck('role')->filter()->sort()->values();
+            $cities = Student::distinct()->pluck('candidate_city')->filter()->sort()->values();
+
+            return view('admin.students-list', compact(
+                'students',
+                'totalStudents',
+                'completedStudents',
+                'inProgressStudents',
+                'notStartedStudents',
+                'roles',
+                'cities'
+            ));
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Unable to load students: ' . $e->getMessage());
+        }
+    }
+
+    public function updateStudent(Request $request, $id)
+    {
+        $user = session('user');
+
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+
+        if ($user->email !== 'admin@email.com') {
+            return redirect('/dashboard')->with('error', 'Access denied. Admin only.');
+        }
+
+        try {
+            $student = Student::findOrFail($id);
+
+            $validated = $request->validate([
+                'candidate_name' => 'required|string|max:255',
+                'candidate_email' => 'required|email|max:255',
+                'candidate_contact' => 'required|string|max:20',
+                'candidate_city' => 'nullable|string|max:255',
+                'role' => 'required|string|max:255'
+            ]);
+
+            $student->update($validated);
+
+            return redirect()->route('students.list')->with('success', 'Student updated successfully!');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Unable to update student: ' . $e->getMessage());
+        }
+    }
+
+    public function deleteStudent($id)
+    {
+        $user = session('user');
+
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Please login first.');
+        }
+
+        if ($user->email !== 'admin@email.com') {
+            return redirect('/dashboard')->with('error', 'Access denied. Admin only.');
+        }
+
+        try {
+            $student = Student::findOrFail($id);
+            $studentName = $student->candidate_name;
+            $student->delete();
+
+            return redirect()->route('students.list')->with('success', "Student '{$studentName}' deleted successfully!");
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Unable to delete student: ' . $e->getMessage());
         }
     }
 
@@ -192,7 +449,6 @@ class CSVImportController extends Controller
             'difficulty' => $questionData['difficulty'],
             'tags' => $questionData['tags'],
             'status' => $questionData['status'],
-            'exam_id' => null, // Don't store exam_id here, use pivot table instead
             'import_hash' => $importHash,
             'created_at' => now(),
             'updated_at' => now()

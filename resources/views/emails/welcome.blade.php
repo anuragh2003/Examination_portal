@@ -37,12 +37,6 @@
                 Please enter this OTP on the verification screen to start your exam.
             </p>
 
-            <div class="text-center">
-                <a href="{{ url('/verify') }}" 
-                   class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg transition">
-                    Verify Now
-                </a>
-            </div>
 
             <p class="text-gray-500 text-sm mt-6">
                 If you didn’t register, you can safely ignore this email.

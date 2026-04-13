@@ -34,6 +34,10 @@
                             <code>{{ $exam->uuid }}</code>
                         </div>
                         <div class="col-md-3">
+                            <strong>Role:</strong><br>
+                            <span class="h4 text-secondary">{{ ucfirst($exam->role) }}</span>
+                        </div>
+                        <div class="col-md-3">
                             <strong>Questions:</strong><br>
                             <span class="h4 text-success" id="question-count">0</span>
                         </div>
@@ -214,13 +218,20 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 const examUrl = `${window.location.origin}/exam/${data.instance_uuid}`;
-                navigator.clipboard.writeText(examUrl).then(() => {
-                    const message = `✅ New exam link created and copied!\n\n🔗 Link: ${examUrl}\n\n📝 Questions will be uniquely shuffled for each student when they register.`;
-                    showSuccess(message);
-                }).catch(() => {
-                    const message = `Copy this exam link:\n${examUrl}\n\nQuestions will be uniquely shuffled for each student when they register.`;
-                    showInfo(message, 'Exam Link Created');
-                });
+                
+                // Try modern Clipboard API first
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(examUrl).then(() => {
+                        const message = `✅ New exam link created and copied!\n\n🔗 Link: ${examUrl}\n\n📝 Questions will be uniquely shuffled for each student when they register.`;
+                        showSuccess(message);
+                    }).catch(() => {
+                        // Fallback if clipboard fails
+                        copyExamLinkLegacy(examUrl);
+                    });
+                } else {
+                    // Fallback for HTTP connections or older browsers
+                    copyExamLinkLegacy(examUrl);
+                }
             } else {
                 showError('Failed to create exam link: ' + data.message);
             }
@@ -229,6 +240,35 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error creating exam instance:', error);
             showError('Error creating exam link. Please try again.');
         });
+    }
+    
+    /**
+     * Fallback method to copy text using legacy execCommand
+     */
+    function copyExamLinkLegacy(examUrl) {
+        const textArea = document.createElement('textarea');
+        textArea.value = examUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        
+        try {
+            textArea.select();
+            const successful = document.execCommand('copy');
+            if (successful) {
+                const message = `✅ New exam link created and copied!\n\n🔗 Link: ${examUrl}\n\n📝 Questions will be uniquely shuffled for each student when they register.`;
+                showSuccess(message);
+            } else {
+                const message = `Copy this exam link:\n${examUrl}\n\nQuestions will be uniquely shuffled for each student when they register.`;
+                showInfo(message, 'Exam Link Created');
+            }
+        } catch (err) {
+            const message = `Copy this exam link:\n${examUrl}\n\nQuestions will be uniquely shuffled for each student when they register.`;
+            showInfo(message, 'Exam Link Created');
+        } finally {
+            document.body.removeChild(textArea);
+        }
     }
     
     /**

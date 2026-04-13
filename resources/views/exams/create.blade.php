@@ -42,6 +42,11 @@
         </div>
 
         <div>
+          <label class="block mb-1 font-medium">Role</label>
+          <input type="text" name="role" class="w-full border px-3 py-2 rounded" placeholder="e.g. Developer, QA, Data Analyst" required>
+        </div>
+
+        <div>
           <label class="block mb-1 font-medium">Status</label>
           <select name="status" class="w-full border px-3 py-2 rounded">
             <option value="draft">Draft</option>

@@ -16,7 +16,8 @@ class Exam extends Model
         'uuid',
         'total_marks',
         'duration_minutes',
-        'status'
+        'status',
+        'role'
     ];
 
     protected static function boot(): void

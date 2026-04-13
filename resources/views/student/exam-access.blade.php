@@ -20,15 +20,15 @@
     <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full mx-auto transform hover:shadow-3xl transition duration-500 ease-in-out border border-gray-200">
         
         <!-- Header Section -->
-        <div class="bg-gradient-to-br from-blue-600 to-purple-700 text-white p-10 rounded-t-3xl text-center">
+        <div class="bg-gradient-to-br from-blue-600 to-purple-700 text-white p-6 md:p-10 rounded-t-3xl text-center">
             <div class="mb-4">
                 <!-- Academic Icon (Book/Graduation Cap) -->
-                <svg class="mx-auto h-14 w-14 text-white opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg class="mx-auto h-12 md:h-14 w-12 md:w-14 text-white opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path d="M12 14l9-5-9-5-9 5 9 5z" />
                     <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.05v-9.176l-.683 1.151l-.683-1.151V20.05a11.95 11.95 0 00-6.822-2.583A12.083 12.083 0 015.84 10.578L12 14z" />
                 </svg>
             </div>
-            <h1 class="text-3xl font-extrabold mb-1">{{ $exam->name }}</h1>
+            <h1 class="text-2xl md:text-3xl font-extrabold mb-1">{{ $exam->name }}</h1>
             <p class="text-blue-200 text-sm font-medium">Secure Online Examination Portal</p>
         </div>
 
@@ -92,97 +92,62 @@
                 </div>
             @endif
 
-            <!-- Student Details Form -->
-            <form action="{{ route('student.exam.register', $exam->uuid) }}" method="POST" class="space-y-6">
+            <!-- Student Login Form -->
+            <form action="/exam/{{ $exam->uuid }}/register" method="POST" class="space-y-6">
                 @csrf
 
-                <!-- Hidden Exam ID -->
                 <input type="hidden" name="exam_id" value="{{ $exam->id }}">
 
-                <!-- Candidate Name -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="candidate_name">Full Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="candidate_name" id="candidate_name" required 
-                            value="{{ old('candidate_name') }}"
-                            placeholder="Enter your full name"
-                            pattern="[a-zA-Z\s]+"
-                            title="Only letters and spaces are allowed"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_name') border-red-500 ring-red-100 @enderror">
-                    @error('candidate_name')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-indigo-700">
+                    <p class="font-semibold">This exam is restricted to candidates with the <strong>{{ ucfirst($exam->role) }}</strong> role.</p>
+                    <p class="text-sm mt-2">Please enter the email address that was imported for this role.</p>
                 </div>
 
-                <!-- Candidate Email -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="candidate_email">Email Address <span class="text-red-500">*</span></label>
-                    <input type="email" name="candidate_email" id="candidate_email" required 
-                            value="{{ old('candidate_email') }}"
-                            placeholder="e.g., jane.doe@example.com"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_email') border-red-500 ring-red-100 @enderror">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="candidate_email">Registered Email <span class="text-red-500">*</span></label>
+                    <input type="email" name="candidate_email" id="candidate_email" required
+                        value="{{ old('candidate_email') }}"
+                        placeholder="e.g., john.doe@example.com"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_email') border-red-500 ring-red-100 @enderror">
                     @error('candidate_email')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
 
-                <!-- Contact and City in a single row for desktop, stacked on mobile -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!-- Candidate Contact (Optional) -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2" for="candidate_contact">Contact Number (Optional)</label>
-                        <input type="text" name="candidate_contact" id="candidate_contact"
-                                value="{{ old('candidate_contact') }}"
-                                placeholder="Enter your contact number"
-                                pattern="[0-9]{10}"
-                                title="Contact number must be exactly 10 digits"
-                                maxlength="10"
-                                inputmode="numeric"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_contact') border-red-500 ring-red-100 @enderror">
-                        @error('candidate_contact')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <!-- Candidate City (Optional) -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2" for="candidate_city">City (Optional)</label>
-                        <input type="text" name="candidate_city" id="candidate_city"
-                                value="{{ old('candidate_city') }}"
-                                placeholder="Enter your city"
-                                pattern="[a-zA-Z\s]+"
-                                title="Only letters and spaces are allowed"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition @error('candidate_city') border-red-500 ring-red-100 @enderror">
-                        @error('candidate_city')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
-
-                <!-- Consent Checkbox -->
-                <div class="flex items-start space-x-3 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-                    <input type="checkbox" id="consent" name="consent" required 
-                            class="mt-1 h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded-md cursor-pointer">
-                    <label for="consent" class="text-sm text-gray-800 leading-relaxed">
-                        I have read and agree to the **examination instructions** and confirm that the information provided is accurate.
-                    </label>
-                </div>
-
-                <!-- Submit Button -->
-                <button type="submit" 
-                        class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-xl font-extrabold text-lg 
-                                hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.01] shadow-xl">
+                <button type="submit"
+                        class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-xl font-extrabold text-lg
+                               hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.01] shadow-xl">
                     <span class="flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                        Register & Send OTP
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12H8m0 0l4-4m-4 4l4 4"/></svg>
+                        Send OTP to Registered Email
                     </span>
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- Removed intrusive back-button warning JS logic for better pre-exam UX -->
-    
     <script>
+        // Prevent back button navigation from exam access page
+        function preventBack() {
+            window.history.pushState(null, "", window.location.href);
+        }
+
+        // Push state multiple times (stronger effect)
+        for (let i = 0; i < 50; i++) {
+            preventBack();
+        }
+
+        window.addEventListener('popstate', function() {
+            preventBack();
+        });
+
+        // Prevent page caching
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                window.location.reload(true);
+            }
+        });
+
         // Real-time input validation
         
         // Full Name: Only letters and spaces

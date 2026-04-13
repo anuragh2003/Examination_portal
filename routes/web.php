@@ -41,6 +41,14 @@ Route::put('/exams/{uuid}', [ExamController::class, 'update'])->name('exams.upda
     // CSV Import routes per exam
     Route::get('/exams/{uuid}/import', [CSVImportController::class, 'showImportForm'])->name('exams.import.form');
     Route::post('/exams/{uuid}/import', [CSVImportController::class, 'import'])->name('exams.import');
+
+    // Common student import routes (import student email/name/mobile/role globally)
+    Route::get('/students/import', [CSVImportController::class, 'showStudentImportForm'])->name('students.import.form');
+    Route::post('/students/import', [CSVImportController::class, 'importStudents'])->name('students.import');
+    Route::get('/students', [CSVImportController::class, 'listStudents'])->name('students.list');
+    Route::put('/students/{id}', [CSVImportController::class, 'updateStudent'])->name('students.update');
+    Route::delete('/students/{id}', [CSVImportController::class, 'deleteStudent'])->name('students.delete');
+
 Route::post('/exams/{uuid}/create-instance', [ExamController::class, 'createExamInstance'])->name('exam.create.instance');
     // API routes
     Route::get('/api/questions', [ExamController::class, 'getAllQuestions'])->name('api.questions');
@@ -63,7 +71,11 @@ Route::prefix('exam')->middleware('web')->group(function () {
     Route::get('/{uuid}/take', [StudentController::class, 'takeExam'])->name('student.exam.take');
     Route::post('/{uuid}/save-answer', [StudentController::class, 'saveAnswer'])->name('exam.saveAnswer');
 Route::post('/{uuid}/submit', [StudentController::class, 'submitExam'])->name('exam.submit');
+Route::get('/{uuid}/submit', function ($uuid) {
+    return redirect()->route('student.exam-submitted', ['uuid' => $uuid]);
+});
 Route::get('/{uuid}/submitted', [StudentController::class, 'examSubmitted'])->name('student.exam-submitted');
+Route::get('/{uuid}/check-submission', [StudentController::class, 'checkSubmission'])->name('exam.check-submission');
 Route::post('/{uuid}/upload-proctor-screenshots', [StudentController::class, 'uploadProctorScreenshots'])
     ->name('upload.proctor.screenshots')
     ->middleware('api'); // Temporarily use API middleware instead of web
